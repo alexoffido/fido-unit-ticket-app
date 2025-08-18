@@ -1,23 +1,6 @@
 require('dotenv').config();
 
-// Debug environment variables
-console.log('Environment check:');
-console.log('SLACK_BOT_TOKEN exists:', !!process.env.SLACK_BOT_TOKEN);
-console.log('SLACK_SIGNING_SECRET exists:', !!process.env.SLACK_SIGNING_SECRET);
-console.log('PORT:', process.env.PORT);
-
 const { App } = require('@slack/bolt');
-
-// Validate required environment variables
-if (!process.env.SLACK_BOT_TOKEN) {
-  console.error('SLACK_BOT_TOKEN is required');
-  process.exit(1);
-}
-
-if (!process.env.SLACK_SIGNING_SECRET) {
-  console.error('SLACK_SIGNING_SECRET is required');
-  process.exit(1);
-}
 
 // Initialize Slack Bolt app
 const app = new App({
@@ -27,23 +10,61 @@ const app = new App({
   port: parseInt(process.env.PORT) || 3000
 });
 
+// Channel IDs
+const CHANNELS = {
+  FIDO_CX: process.env.FIDO_CX_CHANNEL_ID || 'C07PN5F527N',
+  CX_UNIT_CHANGES: process.env.CX_UNIT_CHANGES_CHANNEL_ID || 'C08M77HMRT9'
+};
+
+// Generate unique ticket ID
+function generateTicketId(type) {
+  const prefix = type === 'issue' ? 'FI' : type === 'inquiry' ? 'FQ' : 'FU';
+  const timestamp = Date.now().toString().slice(-6);
+  return `${prefix}-${timestamp}`;
+}
+
 // Simple test command
 app.command('/fido-test', async ({ command, ack, respond }) => {
   await ack();
-  await respond('Fido Ticketing System is working! 🎉');
+  await respond('🎉 Fido Ticketing System is working! Ready to create tickets.');
 });
 
-// Health check
-app.receiver.app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-});
+// Slash command: /fido-issue
+app.command('/fido-issue', async ({ command, ack, body, client }) => {
+  await ack();
+  
+  try {
+    const ticketId = generateTicketId('issue');
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    // Simple ticket creation for now
+    const message = `ATTN: @bp-operations the CX Team has logged a customer issue - please review & follow up in this thread asap!
 
-// Root endpoint
-app.receiver.app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Fido Ticketing Suite is running!',
-    timestamp: new Date().toISOString()
-  });
+**Issue Date:** ${timestamp}
+**Ticket ID:** ${ticketId}
+**Created by:** <@${body.user_id}>
+**Details:** Use the full modal form (coming soon)
+
+*This is a test ticket from the new Fido Ticketing System*`;
+
+    // Post to #fido-cx channel
+    await client.chat.postMessage({
+      channel: CHANNELS.FIDO_CX,
+      text: message
+    });
+
+    // Respond to user
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `✅ Service issue ticket ${ticketId} created successfully!`
+    });
+
+    console.log(`Created service issue ticket ${ticketId}`);
+    
+  } catch (error) {
+    console.error('Error creating issue ticket:', error);
+  }
 });
 
 // Start the app
@@ -52,6 +73,9 @@ app.receiver.app.get('/', (req, res) => {
     await app.start();
     console.log('⚡️ Fido Ticketing Suite is running!');
     console.log(`🚀 Server started on port ${process.env.PORT || 3000}`);
+    console.log('📋 Available commands:');
+    console.log('   /fido-test - Test the connection');
+    console.log('   /fido-issue - Create service issue tickets');
   } catch (error) {
     console.error('Error starting app:', error);
     process.exit(1);
