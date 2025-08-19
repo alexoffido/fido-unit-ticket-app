@@ -37,33 +37,131 @@ app.command('/fido-issue', async ({ command, ack, body, client }) => {
     const ticketId = generateTicketId('issue');
     const timestamp = new Date().toISOString().split('T')[0];
     
-    // Simple ticket creation for now
-    const message = `ATTN: @bp-operations the CX Team has logged a customer issue - please review & follow up in this thread asap!
+    // Fixed message formatting - use single asterisks for bold in Slack
+    const message = `ATTN: <@bp-operations> the CX Team has logged a customer issue - please review & follow up in this thread asap!
 
-**Issue Date:** ${timestamp}
-**Ticket ID:** ${ticketId}
-**Created by:** <@${body.user_id}>
-**Details:** Use the full modal form (coming soon)
+*Issue Date:* ${timestamp}
+*Ticket ID:* ${ticketId}
+*Created by:* <@${body.user_id}>
+*Details:* Use the full modal form (coming soon)
 
-*This is a test ticket from the new Fido Ticketing System*`;
+_This is a test ticket from the new Fido Ticketing System_`;
 
-    // Post to #fido-cx channel
+    // Post to #fido-cx channel (NOT ephemeral)
     await client.chat.postMessage({
       channel: CHANNELS.FIDO_CX,
-      text: message
+      text: message,
+      mrkdwn: true
     });
 
-    // Respond to user
+    // Send success confirmation as ephemeral message to user
     await client.chat.postEphemeral({
       channel: body.channel_id,
       user: body.user_id,
-      text: `✅ Service issue ticket ${ticketId} created successfully!`
+      text: `✅ Service issue ticket ${ticketId} created successfully in <#${CHANNELS.FIDO_CX}>!`
     });
 
     console.log(`Created service issue ticket ${ticketId}`);
     
   } catch (error) {
     console.error('Error creating issue ticket:', error);
+    
+    // Send error message to user
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `❌ Error creating ticket: ${error.message}`
+    });
+  }
+});
+
+// Slash command: /fido-inquiry
+app.command('/fido-inquiry', async ({ command, ack, body, client }) => {
+  await ack();
+  
+  try {
+    const ticketId = generateTicketId('inquiry');
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    const message = `ATTN: <@cx> the team has received a customer inquiry - please review & respond in this thread!
+
+*Inquiry Date:* ${timestamp}
+*Ticket ID:* ${ticketId}
+*Created by:* <@${body.user_id}>
+*Type:* Customer Inquiry
+*Details:* Use the full modal form (coming soon)
+
+_This is a customer inquiry from the new Fido Ticketing System_`;
+
+    // Post to #fido-cx channel
+    await client.chat.postMessage({
+      channel: CHANNELS.FIDO_CX,
+      text: message,
+      mrkdwn: true
+    });
+
+    // Send success confirmation
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `✅ Customer inquiry ${ticketId} created successfully in <#${CHANNELS.FIDO_CX}>!`
+    });
+
+    console.log(`Created customer inquiry ${ticketId}`);
+    
+  } catch (error) {
+    console.error('Error creating inquiry:', error);
+    
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `❌ Error creating inquiry: ${error.message}`
+    });
+  }
+});
+
+// Slash command: /fido-unit-change
+app.command('/fido-unit-change', async ({ command, ack, body, client }) => {
+  await ack();
+  
+  try {
+    const ticketId = generateTicketId('unit-change');
+    const timestamp = new Date().toISOString().split('T')[0];
+    
+    const message = `ATTN: <@bpo-mgmt> unit management request received - please review & process in this thread!
+
+*Request Date:* ${timestamp}
+*Ticket ID:* ${ticketId}
+*Created by:* <@${body.user_id}>
+*Type:* Unit Management (Add/Pause/Cancel)
+*Details:* Use the full modal form (coming soon)
+
+_This is a unit management request from the new Fido Ticketing System_`;
+
+    // Post to #cx-unit-changes channel
+    await client.chat.postMessage({
+      channel: CHANNELS.CX_UNIT_CHANGES,
+      text: message,
+      mrkdwn: true
+    });
+
+    // Send success confirmation
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `✅ Unit management request ${ticketId} created successfully in <#${CHANNELS.CX_UNIT_CHANGES}>!`
+    });
+
+    console.log(`Created unit management request ${ticketId}`);
+    
+  } catch (error) {
+    console.error('Error creating unit change request:', error);
+    
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: `❌ Error creating unit change request: ${error.message}`
+    });
   }
 });
 
@@ -76,8 +174,11 @@ app.command('/fido-issue', async ({ command, ack, body, client }) => {
     console.log('📋 Available commands:');
     console.log('   /fido-test - Test the connection');
     console.log('   /fido-issue - Create service issue tickets');
+    console.log('   /fido-inquiry - Create customer inquiry tickets');
+    console.log('   /fido-unit-change - Create unit management requests');
   } catch (error) {
     console.error('Error starting app:', error);
     process.exit(1);
   }
 })();
+
