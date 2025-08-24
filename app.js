@@ -6,28 +6,33 @@ const ClickUpService = require('./services/clickup');
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: false,
-  port: parseInt(process.env.PORT, 10) || 3000,
+  socketMode: false
+  // Removed duplicate port config - handled in app.start(port) only
 });
 
 // Initialize ClickUp service
 const clickupService = new ClickUpService();
 
-// ---------------------- Health / Root Endpoints (for Railway) ----------------------
-// IMPORTANT: attach routes to Bolt's underlying Express app
+// ---------------------- Hardened Health Endpoints (BEFORE app.start) ----------------------
 const expressApp = app.receiver.app;
 
+// Plain root (some platforms probe "/")
 expressApp.get('/', (_req, res) => res.status(200).send('ok'));
 
-expressApp.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'fido-ticketing-suite'
+// Common health probe paths
+const healthPaths = ['/health', '/healthz', '/status', '/ready', '/live'];
+
+// GET: 200 with tiny body
+healthPaths.forEach(p => {
+  expressApp.get(p, (_req, res) => {
+    res.status(200).type('text/plain').send('ok');
   });
 });
 
-expressApp.head('/health', (_req, res) => res.sendStatus(200));
+// HEAD: 200, no body (some platforms use HEAD)
+healthPaths.concat(['/']).forEach(p => {
+  expressApp.head(p, (_req, res) => res.sendStatus(200));
+});
 
 // ---------------------- Constants ----------------------
 const CHANNELS = {
@@ -360,35 +365,59 @@ app.command('/fido-test', async ({ ack, respond }) => {
 app.command('/fido-issue', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({ trigger_id: body.trigger_id, view: serviceIssueModal(body.channel_id) });
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: serviceIssueModal(body.channel_id)
+    });
   } catch (error) {
     console.error('Error opening service issue modal:', error);
-    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
+    // Enhanced error feedback to user
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: '❌ Sorry, there was an error opening the service issue form. Please try again or contact support.'
+    });
   }
 });
 
 app.command('/fido-inquiry', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({ trigger_id: body.trigger_id, view: customerInquiryModal(body.channel_id) });
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: customerInquiryModal(body.channel_id)
+    });
   } catch (error) {
-    console.error('Error opening inquiry modal:', error);
-    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
+    console.error('Error opening customer inquiry modal:', error);
+    // Enhanced error feedback to user
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: '❌ Sorry, there was an error opening the customer inquiry form. Please try again or contact support.'
+    });
   }
 });
 
 app.command('/fido-unit-change', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({ trigger_id: body.trigger_id, view: unitManagementModal(body.channel_id) });
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: unitManagementModal(body.channel_id)
+    });
   } catch (error) {
     console.error('Error opening unit management modal:', error);
-    // FIXED: user should be body.user_id, not body_id
-    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
+    // Enhanced error feedback to user
+    await client.chat.postEphemeral({
+      channel: body.channel_id,
+      user: body.user_id,
+      text: '❌ Sorry, there was an error opening the unit management form. Please try again or contact support.'
+    });
   }
 });
 
-// ---------------------- View Submissions ----------------------
+// ---------------------- Modal Submissions ----------------------
+
 // Service Issue
 app.view('fido_issue_modal', async ({ ack, body, view, client }) => {
   const originChannel = view.private_metadata;
@@ -404,40 +433,40 @@ app.view('fido_issue_modal', async ({ ack, body, view, client }) => {
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value; // lowercase value
+  const marketVal = v.market_block.market_select.selected_option.value; // Already lowercase from MARKET_OPTIONS
   const marketDisp = marketVal.toUpperCase();
   const issueType = v.issue_type_block.issue_type_select.selected_option.text.text;
+  const priorityVal = v.priority_block.priority_select.selected_option.value;
   const priorityText = v.priority_block.priority_select.selected_option.text.text;
-  const priorityVal = v.priority_block.priority_select.selected_option.value; // urgent/high/normal/low
-  const sourceText = v.source_block.source_select.selected_option.text.text;
-  const sourceVal = v.source_block.source_select.selected_option.value;
-  const sourceDetails = v.source_details_block?.source_details_input?.value;
+  const methodVal = v.source_block.source_select.selected_option.value;
+  const methodText = v.source_block.source_select.selected_option.text.text;
+  const contactRef = v.source_details_block?.source_details_input?.value || '';
 
   try {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn',
-        text: `*ATTN:* <!subteam^${SUBTEAMS.BP_OPERATIONS}|@bp-operations> The CX Team logged a customer issue — please review & follow up *in this thread* ASAP.` } },
+        text: `*ATTN:* <!subteam^${SUBTEAMS.BP_OPERATIONS}|@bp-operations> Service issue reported — please review & respond *in this thread*.` } },
       { type: 'section', fields: [
-        { type: 'mrkdwn', text: `*Issue Date:*\n${dateStr}` },
+        { type: 'mrkdwn', text: `*Report Date:*\n${dateStr}` },
         { type: 'mrkdwn', text: `*Ticket ID:*\n${ticketId}` },
         { type: 'mrkdwn', text: `*Property:*\n${property}` },
         { type: 'mrkdwn', text: `*Client:*\n${clientName}` },
         { type: 'mrkdwn', text: `*Market:*\n${marketDisp}` },
         { type: 'mrkdwn', text: `*Issue Type:*\n${issueType}` },
         { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` },
-        { type: 'mrkdwn', text: `*Reported Via:*\n${sourceText}${sourceDetails ? ` (${sourceDetails})` : ''}` }
+        { type: 'mrkdwn', text: `*Reported Via:*\n${methodText}${contactRef ? ` (${contactRef})` : ''}` }
       ]},
-      { type: 'section', text: { type: 'mrkdwn', text: `*Description:*\n${description}` } },
+      { type: 'section', text: { type: 'mrkdwn', text: `*Issue Description:*\n${description}` } },
       { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
     ];
 
     const post = await client.chat.postMessage({ channel: CHANNELS.FIDO_CX, text: `Service issue ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    // Create ClickUp task
+    // Create ClickUp task - ensure market is lowercase for ClickUp service
     const modalData = {
-      ticketId, property, clientName, market: marketVal, issueType, priority: priorityVal,
-      description, source: sourceVal, sourceDetails, dateStr
+      ticketId, property, clientName, market: marketVal.toLowerCase(), issueType,
+      priority: priorityVal, description, source: methodVal, sourceDetails: contactRef, dateStr
     };
     
     const clickupResult = await clickupService.createTask('issue', modalData, permalink, body.user.id);
@@ -463,7 +492,7 @@ app.view('fido_issue_modal', async ({ ack, body, view, client }) => {
       text: `✅ Service issue *${ticketId}* created — <${permalink}|View in #fido-cx>${clickupResult.success ? ` | <${clickupResult.taskUrl}|ClickUp Task>` : ''}`
     });
   } catch (err) {
-    console.error('Issue ticket error:', err);
+    console.error('Service issue ticket error:', err);
     await client.chat.postEphemeral({ channel: originChannel, user: body.user.id, text: `❌ ${err.message}` });
   }
 });
@@ -483,19 +512,19 @@ app.view('fido_inquiry_modal', async ({ ack, body, view, client }) => {
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value;
+  const marketVal = v.market_block.market_select.selected_option.value; // Already lowercase from MARKET_OPTIONS
   const marketDisp = marketVal.toUpperCase();
   const inquiryType = v.inquiry_type_block.inquiry_type_select.selected_option.text.text;
-  const priorityText = v.priority_block.priority_select.selected_option.text.text;
   const priorityVal = v.priority_block.priority_select.selected_option.value;
-  const methodText = v.source_block.source_select.selected_option.text.text;
+  const priorityText = v.priority_block.priority_select.selected_option.text.text;
   const methodVal = v.source_block.source_select.selected_option.value;
-  const contactRef = v.source_details_block?.source_details_input?.value;
+  const methodText = v.source_block.source_select.selected_option.text.text;
+  const contactRef = v.source_details_block?.source_details_input?.value || '';
 
   try {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn',
-        text: `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> A customer inquiry was logged — please review & respond *in this thread*.` } },
+        text: `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> Customer inquiry received — please review & respond *in this thread*.` } },
       { type: 'section', fields: [
         { type: 'mrkdwn', text: `*Inquiry Date:*\n${dateStr}` },
         { type: 'mrkdwn', text: `*Ticket ID:*\n${ticketId}` },
@@ -513,9 +542,9 @@ app.view('fido_inquiry_modal', async ({ ack, body, view, client }) => {
     const post = await client.chat.postMessage({ channel: CHANNELS.FIDO_CX, text: `Customer inquiry ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    // Create ClickUp task
+    // Create ClickUp task - ensure market is lowercase for ClickUp service
     const modalData = {
-      ticketId, property, clientName, market: marketVal, inquiryType, priority: priorityVal,
+      ticketId, property, clientName, market: marketVal.toLowerCase(), inquiryType, priority: priorityVal,
       details, source: methodVal, sourceDetails: contactRef, dateStr
     };
     
@@ -568,7 +597,7 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value;
+  const marketVal = v.market_block.market_select.selected_option.value; // Already lowercase from MARKET_OPTIONS
   const marketDisp = marketVal.toUpperCase();
   const changeTypeText = v.change_type_block.change_type_select.selected_option.text.text;
   const trashDayText = trashVal ? v.trash_day_block.trash_day_select.selected_option.text.text : 'N/A';
@@ -603,9 +632,9 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
     const post = await client.chat.postMessage({ channel: CHANNELS.CX_UNIT_CHANGES, text: `Unit management ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    // Create ClickUp task
+    // Create ClickUp task - ensure market is lowercase for ClickUp service
     const modalData = {
-      ticketId, property, clientName, market: marketVal, changeType: changeVal,
+      ticketId, property, clientName, market: marketVal.toLowerCase(), changeType: changeVal,
       trashDay: trashVal, recyclingDay: recyclingVal,
       effectiveDate, reason, instructions, dateStr
     };
@@ -638,15 +667,15 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
   }
 });
 
-// ---------------------- Start App ----------------------
+// ---------------------- Start App with Hardened Port Binding ----------------------
 (async () => {
   try {
-    await app.start();
-    console.log('⚡️ Fido Ticketing Suite is running!');
-    console.log(`🚀 Server started on port ${process.env.PORT || 3000}`);
-    console.log('📋 Available commands: /fido-test, /fido-issue, /fido-inquiry, /fido-unit-change');
+    const port = parseInt(process.env.PORT, 10) || 3000;
+    await app.start(port);
+    console.log(`⚡️ Fido Ticketing Suite is running on ${port}`);
   } catch (error) {
     console.error('Error starting app:', error);
     process.exit(1);
   }
 })();
+
