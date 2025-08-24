@@ -1,87 +1,15 @@
-// app.js
 require('dotenv').config();
 const { App } = require('@slack/bolt');
 
-// --------------- Env Diagnostics (non-fatal) ---------------
-const REQUIRED_FOR_SLACK = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET'];
-const missingSlack = REQUIRED_FOR_SLACK.filter(k => !process.env[k]);
-if (missingSlack.length) {
-  console.warn(`[BOOT] Missing Slack env vars: ${missingSlack.join(', ')} — app will still start health endpoints, but Slack features may fail.`);
-}
-
-// --------------- Safe ClickUp Loader (prevents boot crash) ---------------
-function buildClickUpServiceSafe() {
-  try {
-    // If your ClickUp service needs these, check for them. Adjust names as needed.
-    const requiredForClickUp = ['CLICKUP_API_TOKEN', 'CLICKUP_TEAM_ID'];
-    const missing = requiredForClickUp.filter(k => !process.env[k]);
-    if (missing.length) {
-      console.warn(`[BOOT] ClickUp disabled — missing env vars: ${missing.join(', ')}`);
-      return {
-        isEnabled: false,
-        async createTask() {
-          return { success: false, error: 'ClickUp disabled (missing env vars)' };
-        }
-      };
-    }
-
-    const ClickUpService = require('./services/clickup');
-    const instance = new ClickUpService();
-    // Optional smoke check
-    if (typeof instance.createTask !== 'function') {
-      console.warn('[BOOT] ClickUp disabled — service missing createTask()');
-      return {
-        isEnabled: false,
-        async createTask() {
-          return { success: false, error: 'ClickUp disabled (invalid service)' };
-        }
-      };
-    }
-    console.log('[BOOT] ClickUp enabled.');
-    return { isEnabled: true, createTask: instance.createTask.bind(instance) };
-  } catch (err) {
-    console.warn(`[BOOT] ClickUp disabled — constructor error: ${err.message}`);
-    return {
-      isEnabled: false,
-      async createTask() {
-        return { success: false, error: 'ClickUp disabled (constructor error)' };
-      }
-    };
-  }
-}
-
-const clickupService = buildClickUpServiceSafe();
-
-// --------------- App Init ---------------
+// ---------------------- App Init ----------------------
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: false // using HTTP receiver
-  // Port is provided to app.start() below
+  socketMode: false,
+  port: parseInt(process.env.PORT, 10) || 3000,
 });
 
-// --------------- Health Endpoints (before app.start) ---------------
-if (!app.receiver || !app.receiver.app) {
-  // Extremely defensive: some Bolt versions/receivers could differ.
-  // If this ever happens, early exit with a clear message.
-  console.error('[BOOT] Bolt ExpressReceiver not available on app.receiver.app');
-  process.exit(1);
-}
-const expressApp = app.receiver.app;
-
-// Plain root
-expressApp.get('/', (_req, res) => res.status(200).send('ok'));
-
-// Common health probe paths
-const healthPaths = ['/health', '/healthz', '/status', '/ready', '/live'];
-healthPaths.forEach(p => {
-  expressApp.get(p, (_req, res) => res.status(200).type('text/plain').send('ok'));
-});
-[...healthPaths, '/'].forEach(p => {
-  expressApp.head(p, (_req, res) => res.sendStatus(200));
-});
-
-// --------------- Constants ---------------
+// ---------------------- Constants ----------------------
 const CHANNELS = {
   FIDO_CX: process.env.FIDO_CX_CHANNEL_ID || 'C07PN5F527N',
   CX_UNIT_CHANGES: process.env.CX_UNIT_CHANGES_CHANNEL_ID || 'C08M77HMRT9',
@@ -100,7 +28,7 @@ function generateTicketId(type) {
   return `${prefix}-${ts}${rnd}`;
 }
 
-// --------------- Modal Schemas ---------------
+// ---------------------- Modal Schemas ----------------------
 const MARKET_OPTIONS = [
   ['ATX','Austin, TX'],['ANA','Anaheim, CA'],['CHS','Charleston, SC'],['CLT','Charlotte, NC'],
   ['DEN','Denver, CO'],['DFW','Dallas/Fort Worth, TX'],['FLL','Fort Lauderdale, FL'],['GEG','Spokane, WA'],
@@ -120,13 +48,13 @@ const RECYCLING_OPTS = [
   { text: { type: 'plain_text', text: '🔄 Same as Trash Day' }, value: 'same_as_trash' },
   ...DAYS.map(d => ({ text: { type: 'plain_text', text: `♻️ ${d}` }, value: d.toLowerCase() })),
   { text: { type: 'plain_text', text: '🚫 No Recycling Service' }, value: 'none' }
-});
+];
 
-// --------------- Service Issue Modal ---------------
+// Service Issue
 const serviceIssueModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_issue_modal',
-  private_metadata: originChannel,
+  private_metadata: originChannel, // remember origin channel for ephemeral confirmation
   title: { type: 'plain_text', text: 'Report Service Issue' },
   submit: { type: 'plain_text', text: 'Create Ticket' },
   close: { type: 'plain_text', text: 'Cancel' },
@@ -220,7 +148,7 @@ const serviceIssueModal = (originChannel) => ({
   ]
 });
 
-// --------------- Customer Inquiry Modal ---------------
+// Customer Inquiry
 const customerInquiryModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_inquiry_modal',
@@ -319,12 +247,12 @@ const customerInquiryModal = (originChannel) => ({
   ]
 });
 
-// --------------- Unit Management Modal ---------------
+// Unit Management
 const unitManagementModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_unit_change_modal',
   private_metadata: originChannel,
-  title: { type: 'plain_text', text: 'Unit Management' },
+  title: { type: 'plain_text', text: 'Unit Management Request' },
   submit: { type: 'plain_text', text: 'Submit Request' },
   close: { type: 'plain_text', text: 'Cancel' },
   blocks: [
@@ -403,7 +331,7 @@ const unitManagementModal = (originChannel) => ({
   ]
 });
 
-// --------------- Commands → Open Modals ---------------
+// ---------------------- Commands → Open Modals ----------------------
 app.command('/fido-test', async ({ ack, respond }) => {
   await ack();
   await respond('🎉 Fido Ticketing System is working! Ready to create tickets.');
@@ -412,56 +340,34 @@ app.command('/fido-test', async ({ ack, respond }) => {
 app.command('/fido-issue', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: serviceIssueModal(body.channel_id)
-    });
+    await client.views.open({ trigger_id: body.trigger_id, view: serviceIssueModal(body.channel_id) });
   } catch (error) {
     console.error('Error opening service issue modal:', error);
-    await client.chat.postEphemeral({
-      channel: body.channel_id,
-      user: body.user_id,
-      text: '❌ Sorry, there was an error opening the service issue form. Please try again or contact support.'
-    });
+    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
   }
 });
 
 app.command('/fido-inquiry', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: customerInquiryModal(body.channel_id)
-    });
+    await client.views.open({ trigger_id: body.trigger_id, view: customerInquiryModal(body.channel_id) });
   } catch (error) {
-    console.error('Error opening customer inquiry modal:', error);
-    await client.chat.postEphemeral({
-      channel: body.channel_id,
-      user: body.user_id,
-      text: '❌ Sorry, there was an error opening the customer inquiry form. Please try again or contact support.'
-    });
+    console.error('Error opening inquiry modal:', error);
+    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
   }
 });
 
 app.command('/fido-unit-change', async ({ ack, body, client }) => {
   await ack();
   try {
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: unitManagementModal(body.channel_id)
-    });
+    await client.views.open({ trigger_id: body.trigger_id, view: unitManagementModal(body.channel_id) });
   } catch (error) {
     console.error('Error opening unit management modal:', error);
-    await client.chat.postEphemeral({
-      channel: body.channel_id,
-      user: body.user_id,
-      text: '❌ Sorry, there was an error opening the unit management form. Please try again or contact support.'
-    });
+    await client.chat.postEphemeral({ channel: body.channel_id, user: body_id, text: `❌ ${error.message}` });
   }
 });
 
-// --------------- Modal Submissions ---------------
-
+// ---------------------- View Submissions ----------------------
 // Service Issue
 app.view('fido_issue_modal', async ({ ack, body, view, client }) => {
   const originChannel = view.private_metadata;
@@ -477,64 +383,39 @@ app.view('fido_issue_modal', async ({ ack, body, view, client }) => {
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value; // lowercase from MARKET_OPTIONS
-  const marketDisp = marketVal.toUpperCase();
+  const market = v.market_block.market_select.selected_option.value.toUpperCase();
   const issueType = v.issue_type_block.issue_type_select.selected_option.text.text;
-  const priorityVal = v.priority_block.priority_select.selected_option.value;
-  const priorityText = v.priority_block.priority_select.selected_option.text.text;
-  const methodVal = v.source_block.source_select.selected_option.value;
-  const methodText = v.source_block.source_select.selected_option.text.text;
-  const contactRef = v.source_details_block?.source_details_input?.value || '';
+  const priority = v.priority_block.priority_select.selected_option.text.text;
+  const source = v.source_block.source_select.selected_option.text.text;
+  const sourceDetails = v.source_details_block?.source_details_input?.value;
 
   try {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn',
-        text: `*ATTN:* <!subteam^${SUBTEAMS.BP_OPERATIONS}|@bp-operations> Service issue reported — please review & respond *in this thread*.` } },
+        text: `*ATTN:* <!subteam^${SUBTEAMS.BP_OPERATIONS}|@bp-operations> The CX Team logged a customer issue — please review & follow up *in this thread* ASAP.` } },
       { type: 'section', fields: [
-        { type: 'mrkdwn', text: `*Report Date:*\n${dateStr}` },
+        { type: 'mrkdwn', text: `*Issue Date:*\n${dateStr}` },
         { type: 'mrkdwn', text: `*Ticket ID:*\n${ticketId}` },
         { type: 'mrkdwn', text: `*Property:*\n${property}` },
         { type: 'mrkdwn', text: `*Client:*\n${clientName}` },
-        { type: 'mrkdwn', text: `*Market:*\n${marketDisp}` },
+        { type: 'mrkdwn', text: `*Market:*\n${market}` },
         { type: 'mrkdwn', text: `*Issue Type:*\n${issueType}` },
-        { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` },
-        { type: 'mrkdwn', text: `*Reported Via:*\n${methodText}${contactRef ? ` (${contactRef})` : ''}` }
+        { type: 'mrkdwn', text: `*Priority:*\n${priority}` },
+        { type: 'mrkdwn', text: `*Reported Via:*\n${source}${sourceDetails ? ` (${sourceDetails})` : ''}` }
       ]},
-      { type: 'section', text: { type: 'mrkdwn', text: `*Issue Description:*\n${description}` } },
+      { type: 'section', text: { type: 'mrkdwn', text: `*Description:*\n${description}` } },
       { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
     ];
 
     const post = await client.chat.postMessage({ channel: CHANNELS.FIDO_CX, text: `Service issue ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    const modalData = {
-      ticketId, property, clientName, market: marketVal.toLowerCase(), issueType,
-      priority: priorityVal, description, source: methodVal, sourceDetails: contactRef, dateStr
-    };
-
-    const clickupResult = await clickupService.createTask('issue', modalData, permalink, body.user.id);
-
-    if (clickupResult.success) {
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `🔗 *ClickUp Task Created:* <${clickupResult.taskUrl}|${clickupResult.taskName}>`
-      });
-    } else {
-      console.error('ClickUp task creation failed:', clickupResult.error);
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `⚠️ *Note:* ClickUp task creation failed. Please create manually if needed.`
-      });
-    }
-
     await client.chat.postEphemeral({
       channel: originChannel, user: body.user.id,
-      text: `✅ Service issue *${ticketId}* created — <${permalink}|View in #fido-cx>${clickupResult.success ? ` | <${clickupResult.taskUrl}|ClickUp Task>` : ''}`
+      text: `✅ Service issue *${ticketId}* created — <${permalink}|View in #fido-cx>`
     });
   } catch (err) {
-    console.error('Service issue ticket error:', err);
+    console.error('Issue ticket error:', err);
     await client.chat.postEphemeral({ channel: originChannel, user: body.user.id, text: `❌ ${err.message}` });
   }
 });
@@ -554,28 +435,25 @@ app.view('fido_inquiry_modal', async ({ ack, body, view, client }) => {
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value;
-  const marketDisp = marketVal.toUpperCase();
+  const market = v.market_block.market_select.selected_option.value.toUpperCase();
   const inquiryType = v.inquiry_type_block.inquiry_type_select.selected_option.text.text;
-  const priorityVal = v.priority_block.priority_select.selected_option.value;
-  const priorityText = v.priority_block.priority_select.selected_option.text.text;
-  const methodVal = v.source_block.source_select.selected_option.value;
-  const methodText = v.source_block.source_select.selected_option.text.text;
-  const contactRef = v.source_details_block?.source_details_input?.value || '';
+  const priority = v.priority_block.priority_select.selected_option.text.text;
+  const method = v.source_block.source_select.selected_option.text.text;
+  const contactRef = v.source_details_block?.source_details_input?.value;
 
   try {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn',
-        text: `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> Customer inquiry received — please review & respond *in this thread*.` } },
+        text: `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> A customer inquiry was logged — please review & respond *in this thread*.` } },
       { type: 'section', fields: [
         { type: 'mrkdwn', text: `*Inquiry Date:*\n${dateStr}` },
         { type: 'mrkdwn', text: `*Ticket ID:*\n${ticketId}` },
         { type: 'mrkdwn', text: `*Property:*\n${property}` },
         { type: 'mrkdwn', text: `*Client:*\n${clientName}` },
-        { type: 'mrkdwn', text: `*Market:*\n${marketDisp}` },
+        { type: 'mrkdwn', text: `*Market:*\n${market}` },
         { type: 'mrkdwn', text: `*Inquiry Type:*\n${inquiryType}` },
-        { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` },
-        { type: 'mrkdwn', text: `*Contact Method:*\n${methodText}${contactRef ? ` (${contactRef})` : ''}` }
+        { type: 'mrkdwn', text: `*Priority:*\n${priority}` },
+        { type: 'mrkdwn', text: `*Contact Method:*\n${method}${contactRef ? ` (${contactRef})` : ''}` }
       ]},
       { type: 'section', text: { type: 'mrkdwn', text: `*Customer Question:*\n${details}` } },
       { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
@@ -584,31 +462,9 @@ app.view('fido_inquiry_modal', async ({ ack, body, view, client }) => {
     const post = await client.chat.postMessage({ channel: CHANNELS.FIDO_CX, text: `Customer inquiry ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    const modalData = {
-      ticketId, property, clientName, market: marketVal.toLowerCase(), inquiryType, priority: priorityVal,
-      details, source: methodVal, sourceDetails: contactRef, dateStr
-    };
-
-    const clickupResult = await clickupService.createTask('inquiry', modalData, permalink, body.user.id);
-
-    if (clickupResult.success) {
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `🔗 *ClickUp Task Created:* <${clickupResult.taskUrl}|${clickupResult.taskName}>`
-      });
-    } else {
-      console.error('ClickUp task creation failed:', clickupResult.error);
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `⚠️ *Note:* ClickUp task creation failed. Please create manually if needed.`
-      });
-    }
-
     await client.chat.postEphemeral({
       channel: originChannel, user: body.user.id,
-      text: `✅ Customer inquiry *${ticketId}* created — <${permalink}|View in #fido-cx>${clickupResult.success ? ` | <${clickupResult.taskUrl}|ClickUp Task>` : ''}`
+      text: `✅ Customer inquiry *${ticketId}* created — <${permalink}|View in #fido-cx>`
     });
   } catch (err) {
     console.error('Inquiry ticket error:', err);
@@ -622,26 +478,19 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
   const v = view.state.values;
   const changeVal = v.change_type_block.change_type_select.selected_option.value;
   const trashVal = v.trash_day_block?.trash_day_select?.selected_option?.value;
-  const details = v.reason_block.reason_input.value || '';
   if (changeVal === 'new_unit' && !trashVal) {
     await ack({ response_action: 'errors', errors: { trash_day_block: 'Trash pickup day is required for NEW UNIT.' } });
     return;
   }
-  if (details.length < 10) {
-    await ack({ response_action: 'errors', errors: { reason_block: 'Please provide at least 10 characters.' } });
-    return;
-  }
   await ack();
 
-  const ticketId = generateTicketId('unit');
+  const ticketId = generateTicketId('unit-change');
   const dateStr = new Date().toISOString().split('T')[0];
   const property = v.property_block.property_input.value;
   const clientName = v.client_block.client_input.value;
-  const marketVal = v.market_block.market_select.selected_option.value;
-  const marketDisp = marketVal.toUpperCase();
+  const market = v.market_block.market_select.selected_option.value.toUpperCase();
   const changeTypeText = v.change_type_block.change_type_select.selected_option.text.text;
   const trashDayText = trashVal ? v.trash_day_block.trash_day_select.selected_option.text.text : 'N/A';
-  const recyclingVal = v.recycling_day_block?.recycling_day_select?.selected_option?.value;
   const recyclingText = v.recycling_day_block?.recycling_day_select?.selected_option?.text?.text || 'N/A';
   const effectiveDate = v.effective_date_block.effective_date_picker.selected_date;
   const reason = v.reason_block.reason_input.value;
@@ -657,7 +506,7 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
         { type: 'mrkdwn', text: `*Change Type:*\n${changeTypeText}` },
         { type: 'mrkdwn', text: `*Property:*\n${property}` },
         { type: 'mrkdwn', text: `*Client:*\n${clientName}` },
-        { type: 'mrkdwn', text: `*Market:*\n${marketDisp}` },
+        { type: 'mrkdwn', text: `*Market:*\n${market}` },
         { type: 'mrkdwn', text: `*Effective Date:*\n${effectiveDate}` },
         { type: 'mrkdwn', text: `*Trash Day:*\n${trashDayText}` }
       ]},
@@ -672,32 +521,9 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
     const post = await client.chat.postMessage({ channel: CHANNELS.CX_UNIT_CHANGES, text: `Unit management ${ticketId}`, blocks });
     const { permalink } = await client.chat.getPermalink({ channel: post.channel, message_ts: post.ts });
 
-    const modalData = {
-      ticketId, property, clientName, market: marketVal.toLowerCase(), changeType: changeVal,
-      trashDay: trashVal, recyclingDay: recyclingVal,
-      effectiveDate, reason, instructions, dateStr
-    };
-
-    const clickupResult = await clickupService.createTask('unit', modalData, permalink, body.user.id);
-
-    if (clickupResult.success) {
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `🔗 *ClickUp Task Created:* <${clickupResult.taskUrl}|${clickupResult.taskName}>`
-      });
-    } else {
-      console.error('ClickUp task creation failed:', clickupResult.error);
-      await client.chat.postMessage({
-        channel: post.channel,
-        thread_ts: post.ts,
-        text: `⚠️ *Note:* ClickUp task creation failed. Please create manually if needed.`
-      });
-    }
-
     await client.chat.postEphemeral({
       channel: originChannel, user: body.user.id,
-      text: `✅ Unit management *${ticketId}* created — <${permalink}|View in #cx-unit-changes>${clickupResult.success ? ` | <${clickupResult.taskUrl}|ClickUp Task>` : ''}`
+      text: `✅ Unit management *${ticketId}* created — <${permalink}|View in #cx-unit-changes>`
     });
   } catch (err) {
     console.error('Unit change ticket error:', err);
@@ -705,24 +531,15 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client }) => {
   }
 });
 
-// --------------- Global Error Guards ---------------
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('[uncaughtException]', err);
-});
-
-// --------------- Start App ---------------
+// ---------------------- Start App ----------------------
 (async () => {
   try {
-    const port = parseInt(process.env.PORT, 10) || 3000;
-    await app.start(port);
-    console.log(`⚡️ Fido Ticketing Suite is running on ${port}`);
+    await app.start();
+    console.log('⚡️ Fido Ticketing Suite is running!');
+    console.log(`🚀 Server started on port ${process.env.PORT || 3000}`);
+    console.log('📋 Available commands: /fido-test, /fido-issue, /fido-inquiry, /fido-unit-change');
   } catch (error) {
     console.error('Error starting app:', error);
-    // Don’t exit immediately; allow Railway to hit the health endpoints if possible.
-    // If app.start truly failed (e.g., Slack creds unusable), consider exiting:
-    // process.exit(1);
+    process.exit(1);
   }
 })();
