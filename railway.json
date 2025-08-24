@@ -4,7 +4,17 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm start",
-    "restartPolicyType": "ON_FAILURE"
+    "startCommand": "node app.js",
+    "restartPolicyType": "ON_FAILURE",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 300
+  },
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_ENV": "production"
+      }
+    }
   }
 }
+
