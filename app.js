@@ -13,6 +13,22 @@ const app = new App({
 // Initialize ClickUp service
 const clickupService = new ClickUpService();
 
+// ---------------------- Health / Root Endpoints (for Railway) ----------------------
+// IMPORTANT: attach routes to Bolt's underlying Express app
+const expressApp = app.receiver.app;
+
+expressApp.get('/', (_req, res) => res.status(200).send('ok'));
+
+expressApp.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'fido-ticketing-suite'
+  });
+});
+
+expressApp.head('/health', (_req, res) => res.sendStatus(200));
+
 // ---------------------- Constants ----------------------
 const CHANNELS = {
   FIDO_CX: process.env.FIDO_CX_CHANNEL_ID || 'C07PN5F527N',
@@ -58,7 +74,7 @@ const RECYCLING_OPTS = [
 const serviceIssueModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_issue_modal',
-  private_metadata: originChannel, // remember origin channel for ephemeral confirmation
+  private_metadata: originChannel, // origin channel for ephemeral confirmation
   title: { type: 'plain_text', text: 'Report Service Issue' },
   submit: { type: 'plain_text', text: 'Create Ticket' },
   close: { type: 'plain_text', text: 'Cancel' },
@@ -367,7 +383,8 @@ app.command('/fido-unit-change', async ({ ack, body, client }) => {
     await client.views.open({ trigger_id: body.trigger_id, view: unitManagementModal(body.channel_id) });
   } catch (error) {
     console.error('Error opening unit management modal:', error);
-    await client.chat.postEphemeral({ channel: body.channel_id, user: body_id, text: `❌ ${error.message}` });
+    // FIXED: user should be body.user_id, not body_id
+    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: `❌ ${error.message}` });
   }
 });
 
