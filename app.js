@@ -1,8 +1,10 @@
-// app.js (diagnostic)
+// app.js (production w/ Ops → CX added)
 require('dotenv').config();
 const { App, ExpressReceiver } = require('@slack/bolt');
 
-// -------- Env diagnostics (non-fatal so health still works) --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Env diagnostics (non-fatal so health still works)
+────────────────────────────────────────────────────────────────────────── */
 const env = (k) => process.env[k];
 const REQUIRED_FOR_SLACK = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET'];
 const missingSlack = REQUIRED_FOR_SLACK.filter(k => !env(k));
@@ -14,7 +16,10 @@ const NODE_ENV = env('NODE_ENV') || 'production';
 const DIAG = env('FIDO_DIAG') === '1'; // set FIDO_DIAG=1 to print more
 const PORT = parseInt(env('PORT') || '3000', 10);
 
-// -------- Safe ClickUp loader (never throw at boot) --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Safe ClickUp loader (never throw at boot)
+   NOTE: Your ClickUp service must support createTask('ops', ...)
+────────────────────────────────────────────────────────────────────────── */
 function buildClickUpServiceSafe() {
   try {
     const need = ['CLICKUP_API_TOKEN', 'CLICKUP_TEAM_ID'];
@@ -38,10 +43,11 @@ function buildClickUpServiceSafe() {
 }
 const clickupService = buildClickUpServiceSafe();
 
-// -------- Explicit ExpressReceiver with known paths --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Explicit ExpressReceiver with known paths
+────────────────────────────────────────────────────────────────────────── */
 const receiver = new ExpressReceiver({
   signingSecret: env('SLACK_SIGNING_SECRET') || 'missing',
-  // bolt mounts all three for us; keeping explicit for clarity
   endpoints: {
     events: '/slack/events',
     commands: '/slack/commands',
@@ -49,7 +55,7 @@ const receiver = new ExpressReceiver({
   },
 });
 
-// Add very early probe/health routes BEFORE Bolt middleware
+// Very early probe/health routes BEFORE Bolt middleware
 const expressApp = receiver.app;
 expressApp.get('/', (_req, res) => res.status(200).send('ok'));
 ['/health', '/healthz', '/live', '/ready', '/status'].forEach(p => {
@@ -57,7 +63,7 @@ expressApp.get('/', (_req, res) => res.status(200).send('ok'));
   expressApp.head(p, (_req, res) => res.sendStatus(200));
 });
 
-// Optional: tiny env sanity endpoint (only when DIAG=1)
+// Optional env sanity endpoint (only when DIAG=1)
 if (DIAG) {
   expressApp.get('/diag/env', (_req, res) => {
     res.status(200).json({
@@ -69,6 +75,7 @@ if (DIAG) {
         CLICKUP_TEAM_ID: !!env('CLICKUP_TEAM_ID'),
         PORT: env('PORT'),
         NODE_ENV,
+        OPS_COMMAND: '/fido-ops-ticket', // quick reminder
       }
     });
   });
@@ -80,7 +87,9 @@ expressApp.use((req, _res, next) => {
   next();
 });
 
-// -------- Build App --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Build App
+────────────────────────────────────────────────────────────────────────── */
 const app = new App({
   token: env('SLACK_BOT_TOKEN') || 'missing',
   signingSecret: env('SLACK_SIGNING_SECRET') || 'missing',
@@ -101,7 +110,9 @@ app.use(async ({ next, logger, body, payload, command }) => {
   }
 });
 
-// -------- Constants --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Constants
+────────────────────────────────────────────────────────────────────────── */
 const CHANNELS = {
   FIDO_CX: env('FIDO_CX_CHANNEL_ID') || 'C07PN5F527N',
   CX_UNIT_CHANGES: env('CX_UNIT_CHANGES_CHANNEL_ID') || 'C08M77HMRT9',
@@ -111,14 +122,22 @@ const SUBTEAMS = {
   CX: env('CX_SUBTEAM_ID') || 'SXXXXCX',
   BPO_MGMT: env('BPO_MGMT_SUBTEAM_ID') || 'SXXXXBPO',
 };
+
+// Add FO- prefix for Ops → CX
 function generateTicketId(type) {
-  const prefix = type === 'issue' ? 'FI' : type === 'inquiry' ? 'FQ' : 'FU';
+  const prefix =
+    type === 'issue'   ? 'FI' :
+    type === 'inquiry' ? 'FQ' :
+    type === 'unit'    ? 'FU' :
+    type === 'ops'     ? 'FO' : 'FX';
   const ts = Date.now().toString().slice(-6);
   const rnd = Math.random().toString(36).slice(2, 5).toUpperCase();
   return `${prefix}-${ts}${rnd}`;
 }
 
-// -------- Modal Schemas (unchanged content) --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Modal Schemas (existing)
+────────────────────────────────────────────────────────────────────────── */
 const MARKET_OPTIONS = [
   ['ATX','Austin, TX'],['ANA','Anaheim, CA'],['CHS','Charleston, SC'],['CLT','Charlotte, NC'],
   ['DEN','Denver, CO'],['DFW','Dallas/Fort Worth, TX'],['FLL','Fort Lauderdale, FL'],['GEG','Spokane, WA'],
@@ -137,9 +156,11 @@ const RECYCLING_OPTS = [
   { text: { type: 'plain_text', text: '🔄 Same as Trash Day' }, value: 'same_as_trash' },
   ...DAYS.map(d => ({ text: { type: 'plain_text', text: `♻️ ${d}` }, value: d.toLowerCase() })),
   { text: { type: 'plain_text', text: '🚫 No Recycling Service' }, value: 'none' }
-];
+]);
 
-// -------- Views (unchanged logic) --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Views (existing flows)
+────────────────────────────────────────────────────────────────────────── */
 const serviceIssueModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_issue_modal',
@@ -310,7 +331,123 @@ const unitManagementModal = (originChannel) => ({
   ]
 });
 
-// -------- Commands (ack immediately) --------
+/* ──────────────────────────────────────────────────────────────────────────
+   NEW: Ops → CX modal (namespaced to avoid collisions)
+────────────────────────────────────────────────────────────────────────── */
+const opsTicketModal = (originChannel) => ({
+  type: 'modal',
+  callback_id: 'fido_ops_ticket_modal',
+  private_metadata: originChannel,
+  title: { type: 'plain_text', text: 'Ops Tickets' }, // keep display name
+  submit: { type: 'plain_text', text: 'Submit' },
+  close:  { type: 'plain_text', text: 'Cancel' },
+  blocks: [
+    {
+      type: 'input',
+      block_id: 'subject_block',
+      label: { type: 'plain_text', text: 'Subject' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'subject_input',
+        min_length: 10,
+        max_length: 120,
+        placeholder: { type: 'plain_text', text: 'Brief, customer-facing subject' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'property_block',
+      label: { type: 'plain_text', text: 'Property / Location' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'property_input',
+        placeholder: { type: 'plain_text', text: 'Address, unit, or location hint' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'issue_type_block',
+      label: { type: 'plain_text', text: 'Issue Type' },
+      element: {
+        type: 'static_select',
+        action_id: 'ops_issue_type_select', // namespaced
+        placeholder: { type: 'plain_text', text: 'Select issue type' },
+        options: [
+          { text: { type: 'plain_text', text: 'Unable to Access' }, value: 'unable_access' },
+          { text: { type: 'plain_text', text: 'Incorrect Bins / Location' }, value: 'bin_location' },
+          { text: { type: 'plain_text', text: 'Gate/Code/Key Problem' }, value: 'access_code' },
+          { text: { type: 'plain_text', text: 'Blocked / Obstruction' }, value: 'blocked' },
+          { text: { type: 'plain_text', text: 'Safety / Incident' }, value: 'safety' },
+          { text: { type: 'plain_text', text: 'Customer Instruction Conflict' }, value: 'instruction_conflict' },
+          { text: { type: 'plain_text', text: 'Miscellaneous' }, value: 'misc' }
+        ]
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'priority_block',
+      label: { type: 'plain_text', text: 'Priority' },
+      element: {
+        type: 'static_select',
+        action_id: 'priority_select',
+        options: [
+          { text: { type: 'plain_text', text: 'P1 — Urgent' }, value: 'P1' },
+          { text: { type: 'plain_text', text: 'P2 — High' }, value: 'P2' },
+          { text: { type: 'plain_text', text: 'P3 — Normal' }, value: 'P3' }
+        ],
+        initial_option: { text: { type: 'plain_text', text: 'P3 — Normal' }, value: 'P3' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'market_block',
+      label: { type: 'plain_text', text: 'Market' },
+      element: {
+        type: 'static_select',
+        action_id: 'market_select',
+        options: MARKET_OPTIONS
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'description_block',
+      label: { type: 'plain_text', text: 'What happened?' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'description_input',
+        multiline: true,
+        min_length: 20,
+        placeholder: { type: 'plain_text', text: 'Customer-facing description; include enough detail to act' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'external_link_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'External Link (optional)' },
+      element: {
+        type: 'plain_text_input', // validate on submit
+        action_id: 'external_link_input',
+        placeholder: { type: 'plain_text', text: 'https://link.to/evidence-or-tool' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'notes_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'Internal Notes (optional)' },
+      element: {
+        type: 'plain_text_input',
+        action_id: 'notes_input',
+        multiline: true
+      }
+    }
+  ]
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Commands (ack immediately) — existing + new Ops → CX
+────────────────────────────────────────────────────────────────────────── */
 app.command('/fido-test', async ({ ack, respond, body, logger }) => {
   await ack();
   logger.info(`/fido-test from user ${body.user_id}`);
@@ -318,7 +455,7 @@ app.command('/fido-test', async ({ ack, respond, body, logger }) => {
 });
 
 app.command('/fido-issue', async ({ ack, body, client, logger }) => {
-  await ack(); // respond within 3s
+  await ack();
   try {
     await client.views.open({ trigger_id: body.trigger_id, view: serviceIssueModal(body.channel_id) });
   } catch (err) {
@@ -347,7 +484,77 @@ app.command('/fido-unit-change', async ({ ack, body, client, logger }) => {
   }
 });
 
-// -------- View submissions (unchanged core logic; includes ClickUp shim use) --------
+// NEW: /fido-ops-ticket
+app.command('/fido-ops-ticket', async ({ ack, body, client, logger }) => {
+  await ack(); // prevent 3s timeout
+  try {
+    await client.views.open({ trigger_id: body.trigger_id, view: opsTicketModal(body.channel_id) });
+  } catch (err) {
+    logger.error('open ops modal failed', err);
+    await client.chat.postEphemeral({ channel: body.channel_id, user: body.user_id, text: '❌ Error opening the Ops → CX form.' });
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Actions — namespaced cascading for Ops → CX (no collisions)
+────────────────────────────────────────────────────────────────────────── */
+app.action('ops_issue_type_select', async ({ ack, body, client, logger }) => {
+  await ack();
+  try {
+    if (body.view?.callback_id !== 'fido_ops_ticket_modal') return;
+
+    const selected = body.actions[0].selected_option.value;
+    const current = [...body.view.blocks];
+
+    // Remove previously injected conditional blocks
+    const filtered = current.filter(b => !['ops_sub_issue_block', 'ops_misc_specify_block'].includes(b.block_id));
+
+    const anchorIdx = filtered.findIndex(b => b.block_id === 'issue_type_block');
+
+    if (selected === 'unable_access') {
+      const sub = {
+        type: 'input',
+        block_id: 'ops_sub_issue_block',
+        label: { type: 'plain_text', text: 'Access Issue Type' },
+        element: {
+          type: 'static_select',
+          action_id: 'ops_sub_issue_select',
+          options: [
+            { text: { type: 'plain_text', text: 'Bad Gate/Garage Code' }, value: 'bad_code' },
+            { text: { type: 'plain_text', text: 'No Code Provided' }, value: 'no_code' },
+            { text: { type: 'plain_text', text: 'Lock Requires Key' }, value: 'requires_key' },
+            { text: { type: 'plain_text', text: 'Vehicle Blocking Path' }, value: 'vehicle_blocking' },
+            { text: { type: 'plain_text', text: 'City Works Blocking Entry' }, value: 'city_works' }
+          ]
+        }
+      };
+      filtered.splice(anchorIdx + 1, 0, sub);
+    } else if (selected === 'misc') {
+      const misc = {
+        type: 'input',
+        block_id: 'ops_misc_specify_block',
+        label: { type: 'plain_text', text: 'Specify Issue' },
+        element: {
+          type: 'plain_text_input',
+          action_id: 'ops_misc_specify_input',
+          placeholder: { type: 'plain_text', text: 'Briefly describe the issue type' }
+        }
+      };
+      filtered.splice(anchorIdx + 1, 0, misc);
+    }
+
+    await client.views.update({
+      view_id: body.view.id,
+      view: { ...body.view, blocks: filtered }
+    });
+  } catch (err) {
+    logger.error('Ops modal cascade error', err);
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+   View submissions (existing) + NEW Ops → CX submission
+────────────────────────────────────────────────────────────────────────── */
 app.view('fido_issue_modal', async ({ ack, body, view, client, logger }) => {
   const originChannel = view.private_metadata;
   const v = view.state.values;
@@ -557,11 +764,143 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client, logger }) =
   }
 });
 
-// -------- Global error guards --------
+// NEW: Ops → CX submission (posts to CX, creates ClickUp, confirms)
+app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) => {
+  const originChannel = view.private_metadata;
+  const v = view.state.values;
+
+  // URL validation (Slack has no URL input type)
+  const urlCandidate = v.external_link_block?.external_link_input?.value?.trim();
+  if (urlCandidate) {
+    try { new URL(urlCandidate); } catch {
+      await ack({ response_action: 'errors', errors: { external_link_block: 'Please enter a valid URL (e.g., https://example.com).' } });
+      return;
+    }
+  }
+
+  // Validate description length
+  const description = v.description_block.description_input.value || '';
+  if (description.length < 20) {
+    await ack({ response_action: 'errors', errors: { description_block: 'Please provide at least 20 characters.' } });
+    return;
+  }
+
+  await ack(); // prevent 3s timeout
+
+  const ticketId = generateTicketId('ops');
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  const subject       = v.subject_block.subject_input.value.trim();
+  const property      = v.property_block.property_input.value.trim();
+  const issueTypeSel  = v.issue_type_block.ops_issue_type_select.selected_option;
+  const issueTypeText = issueTypeSel.text.text;
+  const issueTypeVal  = issueTypeSel.value;
+
+  const priorityText  = v.priority_block.priority_select.selected_option.text.text;
+  const marketVal     = v.market_block.market_select.selected_option.value;
+  const marketDisp    = marketVal.toUpperCase();
+
+  const externalLink  = urlCandidate || null;
+  const notes         = v.notes_block?.notes_input?.value?.trim() || null;
+
+  // Optional sub-issue if shown
+  let subIssueText = null;
+  if (issueTypeVal === 'unable_access' && v.ops_sub_issue_block?.ops_sub_issue_select?.selected_option) {
+    subIssueText = v.ops_sub_issue_block.ops_sub_issue_select.selected_option.text.text;
+  }
+  if (issueTypeVal === 'misc' && v.ops_misc_specify_block?.ops_misc_specify_input?.value) {
+    subIssueText = v.ops_misc_specify_block.ops_misc_specify_input.value.trim();
+  }
+  const fullIssueType = subIssueText ? `${issueTypeText} → ${subIssueText}` : issueTypeText;
+
+  try {
+    // Slack post to CX channel
+    const headerText = SUBTEAMS.CX
+      ? `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> — New *Ops → CX* Ticket. Please respond *in this thread*.`
+      : `New *Ops → CX* Ticket. Please respond *in this thread*.`;
+
+    const blocks = [
+      { type: 'section', text: { type: 'mrkdwn', text: headerText } },
+      { type: 'section', fields: [
+        { type: 'mrkdwn', text: `*Subject:*\n${subject}` },
+        { type: 'mrkdwn', text: `*Ticket ID:*\n${ticketId}` },
+        { type: 'mrkdwn', text: `*Property/Location:*\n${property}` },
+        { type: 'mrkdwn', text: `*Market:*\n${marketDisp}` },
+        { type: 'mrkdwn', text: `*Issue Type:*\n${fullIssueType}` },
+        { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` }
+      ]},
+      { type: 'section', text: { type: 'mrkdwn', text: `*Description:*\n${description}` } },
+      ...(externalLink ? [{ type: 'section', text: { type: 'mrkdwn', text: `*External Link:*\n<${externalLink}>` } }] : []),
+      ...(notes ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Internal Notes:*\n${notes}` } }] : []),
+      { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
+    ];
+
+    const post = await client.chat.postMessage({
+      channel: CHANNELS.FIDO_CX,
+      text: `Ops → CX ticket ${ticketId}`,
+      blocks
+    });
+
+    const { permalink } = await client.chat.getPermalink({
+      channel: post.channel, message_ts: post.ts
+    });
+
+    // ClickUp creation (Ops → CX list) — service must support the 'ops' type
+    const click = await clickupService.createTask('ops', {
+      ticketId,
+      subject,
+      property,
+      market: marketVal,
+      issueType: fullIssueType,
+      priority: priorityText,
+      description,
+      externalLink,
+      notes,
+      dateStr
+    }, permalink, body.user.id);
+
+    if (click?.success) {
+      await client.chat.postMessage({
+        channel: post.channel,
+        thread_ts: post.ts,
+        text: `🔗 *ClickUp Task:* <${click.taskUrl}|${click.taskName}>`
+      });
+    } else {
+      await client.chat.postMessage({
+        channel: post.channel,
+        thread_ts: post.ts,
+        text: `⚠️ ClickUp task creation failed. Please create manually if needed.`
+      });
+    }
+
+    // Ephemeral confirmation back to the origin channel
+    await client.chat.postEphemeral({
+      channel: originChannel,
+      user: body.user.id,
+      text: `✅ Ops → CX ticket *${ticketId}* created — <${permalink}|View your ticket>${click?.success ? ` | <${click.taskUrl}|ClickUp Task>` : ''}`
+    });
+
+  } catch (err) {
+    logger.error('Ops → CX ticket creation failed', err);
+    try {
+      await client.chat.postEphemeral({
+        channel: originChannel,
+        user: body.user.id,
+        text: '❌ Error creating Ops → CX ticket. Please try again or escalate.'
+      });
+    } catch (_) {}
+  }
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Global error guards
+────────────────────────────────────────────────────────────────────────── */
 process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
 
-// -------- Start server --------
+/* ──────────────────────────────────────────────────────────────────────────
+   Start server
+────────────────────────────────────────────────────────────────────────── */
 (async () => {
   try {
     await app.start(PORT);
