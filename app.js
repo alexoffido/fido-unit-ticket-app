@@ -156,7 +156,7 @@ const RECYCLING_OPTS = [
   { text: { type: 'plain_text', text: '🔄 Same as Trash Day' }, value: 'same_as_trash' },
   ...DAYS.map(d => ({ text: { type: 'plain_text', text: `♻️ ${d}` }, value: d.toLowerCase() })),
   { text: { type: 'plain_text', text: '🚫 No Recycling Service' }, value: 'none' }
-]);
+];
 
 /* ──────────────────────────────────────────────────────────────────────────
    Views (existing flows)
