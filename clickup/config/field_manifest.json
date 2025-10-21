@@ -1,0 +1,239 @@
+{
+  "generated_at": "2025-10-21T21:15:39.406Z",
+  "team_id": "9013484736",
+  "spaces": {
+    "crm": {
+      "id": "901311352726",
+      "name": "CRM"
+    },
+    "admin": {
+      "id": "901311352727",
+      "name": "Admin / Config"
+    }
+  },
+  "lists": {
+    "Customers": {
+      "id": "901321517031",
+      "name": "Customers",
+      "space": "crm"
+    },
+    "Units": {
+      "id": "901321517061",
+      "name": "Units",
+      "space": "crm"
+    },
+    "Market Ownership": {
+      "id": "901321517062",
+      "name": "Market Ownership",
+      "space": "admin"
+    },
+    "VIP Mapping": {
+      "id": "901321517063",
+      "name": "VIP Mapping",
+      "space": "admin"
+    },
+    "Ops Schedules": {
+      "id": "901321517064",
+      "name": "Ops Schedules",
+      "space": "admin"
+    },
+    "CX Schedules": {
+      "id": "901321517065",
+      "name": "CX Schedules",
+      "space": "admin"
+    },
+    "Capacity": {
+      "id": "901321517069",
+      "name": "Capacity",
+      "space": "admin"
+    }
+  },
+  "fields": {
+    "Customers": {
+      "customer_key": {
+        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
+        "name": "customer_key",
+        "type": "text"
+      },
+      "bark_customer_id": {
+        "id": "b1ae8a5e-e480-4e36-96d2-39cf254a1647",
+        "name": "bark_customer_id",
+        "type": "text"
+      },
+      "Customer Name": {
+        "id": "379a4197-007b-4325-914d-fc8a4495bd10",
+        "name": "Customer Name",
+        "type": "text"
+      },
+      "VIP": {
+        "id": "642eebf4-3dc1-411d-b72f-41b8880de2ff",
+        "name": "VIP",
+        "type": "drop_down"
+      },
+      "Primary Markets": {
+        "id": "34271066-cdc9-461b-8be5-b4a6ab2abd0a",
+        "name": "Primary Markets",
+        "type": "labels"
+      },
+      "Status": {
+        "id": "e6679c01-5eb5-44b1-a928-c6a1e52820cc",
+        "name": "Status",
+        "type": "drop_down"
+      }
+    },
+    "Units": {
+      "unit_key": {
+        "id": "f3618b3f-bb6d-4f0d-be98-c4f68a1a528a",
+        "name": "unit_key",
+        "type": "text"
+      },
+      "bark_unit_id": {
+        "id": "889376c9-ccc7-4112-b9d9-53aa55bc184a",
+        "name": "bark_unit_id",
+        "type": "text"
+      },
+      "customer_key": {
+        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
+        "name": "customer_key",
+        "type": "text"
+      },
+      "Address": {
+        "id": "7fbb5388-7eae-4711-89c9-4a2a9f901eef",
+        "name": "Address",
+        "type": "text"
+      },
+      "Market": {
+        "id": "e6221095-41fd-45ab-bc0d-31a65a710f8f",
+        "name": "Market",
+        "type": "drop_down"
+      },
+      "Subscription": {
+        "id": "f11d441d-7e18-4b00-bf6b-fe5e719fb28d",
+        "name": "Subscription",
+        "type": "drop_down"
+      },
+      "Status": {
+        "id": "6e9a6356-6961-440a-b96a-38c41a96d1bc",
+        "name": "Status",
+        "type": "drop_down"
+      }
+    },
+    "Market Ownership": {
+      "Market": {
+        "id": "5bb32437-4882-4253-a2fc-5b539f125804",
+        "name": "Market",
+        "type": "drop_down"
+      },
+      "Primary Ops Owner": {
+        "id": "b05757c9-62f1-4699-90e9-ee8adaa70974",
+        "name": "Primary Ops Owner",
+        "type": "users"
+      },
+      "Backup Ops Owner": {
+        "id": "e0419d23-7fbf-42ed-b141-222314a46e16",
+        "name": "Backup Ops Owner",
+        "type": "users"
+      },
+      "On-Duty Override": {
+        "id": "0d180ce0-05e7-485b-aba2-2d28c3412b4a",
+        "name": "On-Duty Override",
+        "type": "users"
+      }
+    },
+    "VIP Mapping": {
+      "customer_key": {
+        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
+        "name": "customer_key",
+        "type": "text"
+      },
+      "CX Owner": {
+        "id": "af9eaf22-2775-4384-b5ae-ab48f9272af5",
+        "name": "CX Owner",
+        "type": "users"
+      }
+    },
+    "Ops Schedules": {
+      "Person": {
+        "id": "9e5e498b-fdcb-49e5-8349-74db93769f61",
+        "name": "Person",
+        "type": "users"
+      },
+      "Role": {
+        "id": "7e0a4ef7-8bcf-4f2c-9ddb-10eedbef978d",
+        "name": "Role",
+        "type": "drop_down"
+      },
+      "Markets": {
+        "id": "8455e28e-da28-460d-a60d-bfccb9f5aa5c",
+        "name": "Markets",
+        "type": "labels"
+      },
+      "Date": {
+        "id": "beb89a7a-6d6a-4d4e-91d4-e65cd204f5e8",
+        "name": "Date",
+        "type": "date"
+      },
+      "Clock In": {
+        "id": "c0360b36-9791-41fc-b513-875daaf8cc03",
+        "name": "Clock In",
+        "type": "short_text"
+      },
+      "Clock Out": {
+        "id": "c90d89f1-2209-434b-9349-030b4abb247f",
+        "name": "Clock Out",
+        "type": "short_text"
+      },
+      "Approved": {
+        "id": "20a927eb-f0b7-4dab-ac93-5f9e29219282",
+        "name": "Approved",
+        "type": "checkbox"
+      }
+    },
+    "CX Schedules": {
+      "Person": {
+        "id": "9e5e498b-fdcb-49e5-8349-74db93769f61",
+        "name": "Person",
+        "type": "users"
+      },
+      "Day of Week": {
+        "id": "5ef25843-a0b3-4fd3-8152-f2526f788b20",
+        "name": "Day of Week",
+        "type": "drop_down"
+      },
+      "Clock In": {
+        "id": "c0360b36-9791-41fc-b513-875daaf8cc03",
+        "name": "Clock In",
+        "type": "short_text"
+      },
+      "Clock Out": {
+        "id": "c90d89f1-2209-434b-9349-030b4abb247f",
+        "name": "Clock Out",
+        "type": "short_text"
+      },
+      "Active": {
+        "id": "e3393aaa-0fd8-4924-b0b9-0eeb84680800",
+        "name": "Active",
+        "type": "checkbox"
+      }
+    },
+    "Capacity": {
+      "Person": {
+        "id": "9e5e498b-fdcb-49e5-8349-74db93769f61",
+        "name": "Person",
+        "type": "users"
+      },
+      "Weekly Capacity": {
+        "id": "a67744e7-2d67-4114-b41c-0f5953dc7854",
+        "name": "Weekly Capacity",
+        "type": "number"
+      },
+      "Buffer Percentage": {
+        "id": "6be892e4-a462-4fa8-a834-85710ad462e9",
+        "name": "Buffer Percentage",
+        "type": "number"
+      }
+    }
+  },
+  "completed_at": "2025-10-21T21:16:13.092Z",
+  "updated_at": "2025-10-21T21:18:14.557Z"
+}

@@ -1,0 +1,221 @@
+{
+  "markets": [
+    {
+      "code": "ATX",
+      "name": "Austin",
+      "color": "#FF6B35"
+    },
+    {
+      "code": "LAX", 
+      "name": "Los Angeles",
+      "color": "#004E89"
+    },
+    {
+      "code": "NPB",
+      "name": "Newport Beach", 
+      "color": "#1A936F"
+    },
+    {
+      "code": "HHH",
+      "name": "Huntington Harbor",
+      "color": "#88D498"
+    }
+  ],
+  "subscriptions": [
+    {
+      "value": "biweekly",
+      "label": "Biweekly",
+      "description": "Every two weeks service"
+    },
+    {
+      "value": "2 ongoing",
+      "label": "2 Ongoing",
+      "description": "Twice per week ongoing service"
+    },
+    {
+      "value": "3 ongoing", 
+      "label": "3 Ongoing",
+      "description": "Three times per week ongoing service"
+    },
+    {
+      "value": "4 ongoing",
+      "label": "4 Ongoing", 
+      "description": "Four times per week ongoing service"
+    },
+    {
+      "value": "5 ongoing",
+      "label": "5 Ongoing",
+      "description": "Five times per week ongoing service"
+    }
+  ],
+  "statuses": [
+    {
+      "value": "Active",
+      "label": "Active",
+      "color": "#28a745",
+      "description": "Currently receiving service"
+    },
+    {
+      "value": "Paused",
+      "label": "Paused", 
+      "color": "#ffc107",
+      "description": "Temporarily suspended service"
+    },
+    {
+      "value": "Cancelled",
+      "label": "Cancelled",
+      "color": "#dc3545", 
+      "description": "Service permanently discontinued"
+    }
+  ],
+  "vip_levels": [
+    {
+      "value": "VIP",
+      "label": "VIP",
+      "color": "#FFD700",
+      "priority": 1,
+      "description": "High-priority customer requiring special attention"
+    },
+    {
+      "value": "Standard", 
+      "label": "Standard",
+      "color": "#6C757D",
+      "priority": 2,
+      "description": "Standard service level customer"
+    }
+  ],
+  "priority_levels": [
+    {
+      "value": "urgent",
+      "label": "🔴 URGENT",
+      "color": "#dc3545",
+      "priority": 1,
+      "sla_hours": 2
+    },
+    {
+      "value": "high",
+      "label": "🟡 HIGH", 
+      "color": "#ffc107",
+      "priority": 2,
+      "sla_hours": 8
+    },
+    {
+      "value": "normal",
+      "label": "🟢 NORMAL",
+      "color": "#28a745", 
+      "priority": 3,
+      "sla_hours": 24
+    },
+    {
+      "value": "low",
+      "label": "⚪ LOW",
+      "color": "#6c757d",
+      "priority": 4,
+      "sla_hours": 72
+    }
+  ],
+  "issue_categories": {
+    "customer_tickets": [
+      "Service Issue",
+      "Billing Question", 
+      "Schedule Change",
+      "Equipment Request",
+      "General Inquiry"
+    ],
+    "ops_tickets": [
+      "Bins Missing",
+      "Unable to Access Bins",
+      "Guest/Property Owner Refused Service", 
+      "Unable to Locate Bins",
+      "Bins Still Full After a Revisit",
+      "Safety Concern",
+      "Misc."
+    ],
+    "unit_tickets": [
+      "New Unit Setup",
+      "Unit Information Change",
+      "Service Modification",
+      "Unit Cancellation"
+    ]
+  },
+  "ops_access_issues": [
+    {
+      "value": "bad_code",
+      "label": "Bad Gate or Garage Code"
+    },
+    {
+      "value": "no_code", 
+      "label": "No Code Provided"
+    },
+    {
+      "value": "requires_key",
+      "label": "Lock Requires Key"
+    },
+    {
+      "value": "vehicle_blocking",
+      "label": "Vehicle Blocking Path"
+    },
+    {
+      "value": "city_works",
+      "label": "City Works Blocking Entry"
+    }
+  ],
+  "user_roles": [
+    {
+      "role": "super_admin",
+      "label": "Super Admin",
+      "permissions": ["read", "write", "delete", "admin"]
+    },
+    {
+      "role": "admin",
+      "label": "Admin", 
+      "permissions": ["read", "write", "admin"]
+    },
+    {
+      "role": "cx",
+      "label": "Customer Experience",
+      "permissions": ["read", "write"]
+    },
+    {
+      "role": "ops",
+      "label": "Operations",
+      "permissions": ["read", "write"]
+    }
+  ],
+  "spaces": {
+    "crm": {
+      "name": "CRM",
+      "description": "Customer and Unit management with immutable keys",
+      "private": true
+    },
+    "admin_config": {
+      "name": "Admin / Config", 
+      "description": "Market ownership, VIP mapping, schedules, and capacity management",
+      "private": true
+    },
+    "fido_operations": {
+      "name": "Fido Operations",
+      "description": "Existing ticketing and operations space",
+      "existing": true
+    }
+  },
+  "field_types": {
+    "text": 0,
+    "textarea": 1, 
+    "number": 2,
+    "dropdown": 3,
+    "multiselect": 4,
+    "date": 5,
+    "checkbox": 6,
+    "url": 7,
+    "email": 8,
+    "phone": 9,
+    "user": 10,
+    "relationship": 11,
+    "formula": 12,
+    "currency": 13,
+    "location": 14,
+    "rating": 15
+  }
+}
+
