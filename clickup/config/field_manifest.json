@@ -13,12 +13,12 @@
   },
   "lists": {
     "Customers": {
-      "id": "901321517031",
+      "id": "901321549787",
       "name": "Customers",
       "space": "crm"
     },
     "Units": {
-      "id": "901321517061",
+      "id": "901321549939",
       "name": "Units",
       "space": "crm"
     },
@@ -28,9 +28,9 @@
       "space": "admin"
     },
     "VIP Mapping": {
-      "id": "901321517063",
+      "id": "901321549956",
       "name": "VIP Mapping",
-      "space": "admin"
+      "space": "crm"
     },
     "Ops Schedules": {
       "id": "901321517064",
@@ -50,73 +50,25 @@
   },
   "fields": {
     "Customers": {
-      "customer_key": {
-        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
-        "name": "customer_key",
-        "type": "text"
+      "Customer Name": {
+        "id": "292ae7e6-129f-40ab-88ab-bec006c6d262",
+        "name": "Customer Name",
+        "type": "short_text"
       },
       "bark_customer_id": {
-        "id": "b1ae8a5e-e480-4e36-96d2-39cf254a1647",
+        "id": "60a12287-d597-4b4e-a55e-86ffdcbc5a0e",
         "name": "bark_customer_id",
-        "type": "text"
-      },
-      "Customer Name": {
-        "id": "379a4197-007b-4325-914d-fc8a4495bd10",
-        "name": "Customer Name",
-        "type": "text"
-      },
-      "VIP": {
-        "id": "642eebf4-3dc1-411d-b72f-41b8880de2ff",
-        "name": "VIP",
-        "type": "drop_down"
-      },
-      "Primary Markets": {
-        "id": "34271066-cdc9-461b-8be5-b4a6ab2abd0a",
-        "name": "Primary Markets",
-        "type": "labels"
-      },
-      "Status": {
-        "id": "e6679c01-5eb5-44b1-a928-c6a1e52820cc",
-        "name": "Status",
-        "type": "drop_down"
-      }
-    },
-    "Units": {
-      "unit_key": {
-        "id": "f3618b3f-bb6d-4f0d-be98-c4f68a1a528a",
-        "name": "unit_key",
-        "type": "text"
-      },
-      "bark_unit_id": {
-        "id": "889376c9-ccc7-4112-b9d9-53aa55bc184a",
-        "name": "bark_unit_id",
-        "type": "text"
+        "type": "short_text"
       },
       "customer_key": {
-        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
+        "id": "8f687ebc-073d-48c6-ba25-1cae9d16ca3e",
         "name": "customer_key",
-        "type": "text"
+        "type": "short_text"
       },
-      "Address": {
-        "id": "7fbb5388-7eae-4711-89c9-4a2a9f901eef",
-        "name": "Address",
-        "type": "text"
-      },
-      "Market": {
-        "id": "e6221095-41fd-45ab-bc0d-31a65a710f8f",
-        "name": "Market",
-        "type": "drop_down"
-      },
-      "Subscription": {
-        "id": "f11d441d-7e18-4b00-bf6b-fe5e719fb28d",
-        "name": "Subscription",
-        "type": "drop_down"
-      },
-      "Status": {
-        "id": "6e9a6356-6961-440a-b96a-38c41a96d1bc",
-        "name": "Status",
-        "type": "drop_down"
-      }
+      "undefined": {}
+    },
+    "Units": {
+      "undefined": {}
     },
     "Market Ownership": {
       "Market": {
@@ -141,16 +93,7 @@
       }
     },
     "VIP Mapping": {
-      "customer_key": {
-        "id": "b258796e-45bb-4621-83f1-c0a2593310a8",
-        "name": "customer_key",
-        "type": "text"
-      },
-      "CX Owner": {
-        "id": "af9eaf22-2775-4384-b5ae-ab48f9272af5",
-        "name": "CX Owner",
-        "type": "users"
-      }
+      "undefined": {}
     },
     "Ops Schedules": {
       "Person": {
@@ -235,5 +178,5 @@
     }
   },
   "completed_at": "2025-10-21T21:16:13.092Z",
-  "updated_at": "2025-10-21T21:18:14.557Z"
+  "updated_at": "2025-10-22T17:03:32.920Z"
 }
