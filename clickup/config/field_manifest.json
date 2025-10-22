@@ -65,10 +65,60 @@
         "name": "customer_key",
         "type": "short_text"
       },
-      "undefined": {}
+      "undefined": {},
+      "VIP": {
+        "id": "1862504a-b1d5-4838-896c-540b3f5d2d25",
+        "name": "VIP",
+        "type": "drop_down"
+      },
+      "Status": {
+        "id": "1d16c7c0-b2a0-41f1-ba30-b6fb4eb5c22e",
+        "name": "Status",
+        "type": "drop_down"
+      },
+      "Primary Markets": {
+        "id": "9b5cab66-8ce5-4f60-a5bd-eb43925f9e98",
+        "name": "Primary Markets",
+        "type": "labels"
+      }
     },
     "Units": {
-      "undefined": {}
+      "undefined": {},
+      "Status": {
+        "id": "1d16c7c0-b2a0-41f1-ba30-b6fb4eb5c22e",
+        "name": "Status",
+        "type": "drop_down"
+      },
+      "unit_key": {
+        "id": "1ee003c2-a0f4-4b03-a39e-81ff13ca244e",
+        "name": "unit_key",
+        "type": "short_text"
+      },
+      "Market": {
+        "id": "5bb32437-4882-4253-a2fc-5b539f125804",
+        "name": "Market",
+        "type": "drop_down"
+      },
+      "Subscription": {
+        "id": "77969047-89af-4f83-81d0-2300facd8a23",
+        "name": "Subscription",
+        "type": "drop_down"
+      },
+      "customer_key": {
+        "id": "8f687ebc-073d-48c6-ba25-1cae9d16ca3e",
+        "name": "customer_key",
+        "type": "short_text"
+      },
+      "bark_unit_id": {
+        "id": "ad51bb18-c54c-4ccc-9538-80b6a1edaeee",
+        "name": "bark_unit_id",
+        "type": "short_text"
+      },
+      "Address": {
+        "id": "c5a5b8c2-ac5e-47d0-92c7-11a6cb29b5af",
+        "name": "Address",
+        "type": "short_text"
+      }
     },
     "Market Ownership": {
       "Market": {
@@ -93,7 +143,17 @@
       }
     },
     "VIP Mapping": {
-      "undefined": {}
+      "undefined": {},
+      "CX Owner": {
+        "id": "07b5aff2-aca3-4572-9dcc-d3664a2e8e7f",
+        "name": "CX Owner",
+        "type": "users"
+      },
+      "customer_key": {
+        "id": "8f687ebc-073d-48c6-ba25-1cae9d16ca3e",
+        "name": "customer_key",
+        "type": "short_text"
+      }
     },
     "Ops Schedules": {
       "Person": {
@@ -178,5 +238,5 @@
     }
   },
   "completed_at": "2025-10-21T21:16:13.092Z",
-  "updated_at": "2025-10-22T17:03:32.920Z"
+  "updated_at": "2025-10-22T17:08:43.030Z"
 }
