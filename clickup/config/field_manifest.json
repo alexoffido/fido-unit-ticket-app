@@ -27,7 +27,6 @@
       "name": "Market Ownership",
       "space": "admin"
     },
-
     "Ops Schedules": {
       "id": "901321517064",
       "name": "Ops Schedules",
@@ -61,7 +60,6 @@
         "name": "customer_key",
         "type": "short_text"
       },
-      "undefined": {},
       "VIP": {
         "id": "1862504a-b1d5-4838-896c-540b3f5d2d25",
         "name": "VIP",
@@ -79,7 +77,6 @@
       }
     },
     "Units": {
-      "undefined": {},
       "Status": {
         "id": "1d16c7c0-b2a0-41f1-ba30-b6fb4eb5c22e",
         "name": "Status",
@@ -138,7 +135,6 @@
         "type": "users"
       }
     },
-
     "Ops Schedules": {
       "Person": {
         "id": "9e5e498b-fdcb-49e5-8349-74db93769f61",
@@ -222,6 +218,6 @@
     }
   },
   "completed_at": "2025-10-21T21:16:13.092Z",
-  "updated_at": "2025-10-22T17:30:00.000Z",
+  "updated_at": "2025-10-24T21:45:34.575Z",
   "phase_1_1_notes": "VIP Mapping list removed. CX ownership now managed via Customers list Assignees field."
 }
