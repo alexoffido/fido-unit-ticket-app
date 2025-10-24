@@ -190,7 +190,7 @@
     },
     "admin_config": {
       "name": "Admin / Config", 
-      "description": "Market ownership, VIP mapping, schedules, and capacity management",
+      "description": "Market ownership, schedules, and capacity management",
       "private": true
     },
     "fido_operations": {
