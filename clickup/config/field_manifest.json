@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-10-21T21:15:39.406Z",
+  "generated_at": "2025-10-24T23:20:00.000Z",
   "team_id": "9013484736",
   "spaces": {
     "crm": {
@@ -147,7 +147,7 @@
         "type": "drop_down"
       },
       "Markets": {
-        "id": "8455e28e-da28-460d-a60d-bfccb9f5aa5c",
+        "id": "8455e28e-da28-460d-bfccb9f5aa5c",
         "name": "Markets",
         "type": "labels"
       },
@@ -217,7 +217,8 @@
       }
     }
   },
-  "completed_at": "2025-10-21T21:16:13.092Z",
-  "updated_at": "2025-10-24T21:45:34.575Z",
-  "phase_1_1_notes": "VIP Mapping list removed. CX ownership now managed via Customers list Assignees field."
+  "completed_at": "2025-10-24T23:20:00.000Z",
+  "updated_at": "2025-10-24T23:20:00.000Z",
+  "phase_1_1_notes": "VIP Mapping list removed in Phase 1.1. CX ownership now managed via Customers→Assignees field as single source of truth."
 }
+
