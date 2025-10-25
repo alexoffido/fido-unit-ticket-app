@@ -1,13 +1,15 @@
 /**
- * Fido OS - Phase 2: Routing Webhook
- * Logger Middleware
+ * Fido OS - Phase 3: Security Hardening
+ * Structured Logging Middleware
  * 
- * Logs all requests and responses with sanitization
+ * Outputs sanitized JSON logs for audit traceability
+ * NEVER logs raw request bodies or sensitive data
  */
 
 const fs = require('fs');
 const path = require('path');
 const { sanitizeObject, sanitizeMessage } = require('../utils/sanitize');
+const securityAlerting = require('../utils/alerting');
 
 const LOG_DIR = path.join(__dirname, '../../../logs/phase-2');
 
@@ -23,51 +25,86 @@ if (!fs.existsSync(LOG_DIR)) {
  */
 function writeLog(filename, entry) {
   const logPath = path.join(LOG_DIR, filename);
-  const timestamp = new Date().toISOString();
-  const logLine = JSON.stringify({ timestamp, ...entry }) + '\n';
+  const logLine = JSON.stringify(entry) + '\n';
   
   fs.appendFileSync(logPath, logLine, 'utf8');
 }
 
 /**
- * Request/Response logger middleware
+ * Sanitize request data for logging
+ * @param {Object} req - Express request
+ * @returns {Object} Sanitized request data
+ */
+function sanitizeRequest(req) {
+  return {
+    method: req.method,
+    path: req.path,
+    ip: req.ip || req.connection?.remoteAddress,
+    userAgent: req.headers['user-agent'],
+    hasSignature: !!req.headers['x-signature'],
+    contentType: req.headers['content-type'],
+    contentLength: req.headers['content-length']
+  };
+}
+
+/**
+ * Logger middleware
+ * Logs all requests and responses in structured JSON format
  */
 function loggerMiddleware(req, res, next) {
   const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  // Log request
+  // Log incoming request (structured JSON, no body)
   const requestLog = {
-    id: requestId,
-    type: 'request',
-    method: req.method,
-    path: req.path,
-    headers: sanitizeObject(req.headers),
-    body: sanitizeObject(req.body),
-    query: req.query
+    level: 'info',
+    message: 'Incoming request',
+    request_id: requestId,
+    request: sanitizeRequest(req),
+    timestamp: new Date().toISOString()
   };
   
   writeLog('webhook.log', requestLog);
-  console.log(`[${requestId}] ${req.method} ${req.path}`);
+  console.log(JSON.stringify(requestLog));
   
   // Capture response
   const originalSend = res.send;
   res.send = function(data) {
     const duration = Date.now() - startTime;
     
-    // Log response
-    const responseLog = {
-      id: requestId,
-      type: 'response',
-      statusCode: res.statusCode,
-      duration: `${duration}ms`,
-      body: sanitizeObject(typeof data === 'string' ? JSON.parse(data) : data)
+    // Log response (structured JSON)
+    const logEntry = {
+      level: res.statusCode >= 400 ? 'warn' : 'info',
+      message: 'Request completed',
+      request_id: requestId,
+      request: sanitizeRequest(req),
+      response: {
+        statusCode: res.statusCode,
+        statusMessage: res.statusMessage,
+        duration: `${duration}ms`
+      },
+      timestamp: new Date().toISOString()
     };
     
-    writeLog('webhook.log', responseLog);
-    console.log(`[${requestId}] ${res.statusCode} (${duration}ms)`);
+    // Add security_event field for security-related responses
+    if (res.statusCode === 401) {
+      logEntry.security_event = 'unauthorized';
+      
+      // Record 401 for alerting
+      securityAlerting.record401({
+        ip: req.ip || req.connection?.remoteAddress,
+        reason: 'invalid_signature'
+      });
+    } else if (res.statusCode === 429) {
+      logEntry.security_event = 'rate_limited';
+    } else if (res.statusCode === 409) {
+      logEntry.security_event = 'replay_detected';
+    }
     
-    originalSend.call(this, data);
+    writeLog('webhook.log', logEntry);
+    console.log(JSON.stringify(logEntry));
+    
+    return originalSend.call(this, data);
   };
   
   next();
@@ -80,17 +117,20 @@ function loggerMiddleware(req, res, next) {
  */
 function logRouting(taskId, routing) {
   const routingLog = {
+    level: 'info',
+    message: 'Routing decision',
     type: 'routing',
     task_id: taskId,
     cx_owner: routing.cx_owner,
     ops_owner: routing.ops_owner,
     routing_source: routing.routing_source,
     customer_key: routing.customer_key,
-    market: routing.market
+    market: routing.market,
+    timestamp: new Date().toISOString()
   };
   
   writeLog('routing.log', routingLog);
-  console.log(`[ROUTING] Task ${taskId}: CX=${routing.cx_owner}, Ops=${routing.ops_owner}, Source=${routing.routing_source}`);
+  console.log(JSON.stringify(routingLog));
 }
 
 /**
@@ -100,19 +140,23 @@ function logRouting(taskId, routing) {
  */
 function logError(context, error) {
   const errorLog = {
+    level: 'error',
+    message: 'Error occurred',
     type: 'error',
     context,
-    message: sanitizeMessage(error.message),
-    stack: sanitizeMessage(error.stack)
+    error: sanitizeMessage(error.message),
+    stack: sanitizeMessage(error.stack),
+    timestamp: new Date().toISOString()
   };
   
   writeLog('errors.log', errorLog);
-  console.error(`[ERROR] ${context}:`, error.message);
+  console.error(JSON.stringify(errorLog));
 }
 
 module.exports = {
   loggerMiddleware,
   logRouting,
-  logError
+  logError,
+  sanitizeRequest
 };
 

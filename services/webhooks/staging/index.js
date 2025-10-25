@@ -1,12 +1,20 @@
 /**
- * Fido OS - Phase 2: Routing Webhook
+ * Fido OS - Phase 3: Security Hardening
  * Main Application Entry Point
  * 
  * Stateless webhook service for intelligent ticket routing
+ * 
+ * Security Features:
+ * - HMAC signature validation
+ * - Replay protection
+ * - Rate limiting
+ * - Structured logging
+ * - 401 alerting
  */
 
 const express = require('express');
 const { loggerMiddleware } = require('./middleware/logger');
+const { rateLimitMiddleware } = require('./middleware/rateLimit');
 const healthRoutes = require('./routes/health');
 const webhookRoutes = require('./routes/webhook');
 
@@ -19,7 +27,7 @@ app.use(loggerMiddleware);
 
 // Routes
 app.use('/', healthRoutes);
-app.use('/webhook', webhookRoutes);
+app.use('/webhook', rateLimitMiddleware, webhookRoutes); // Rate limit webhook endpoint
 
 // 404 handler
 app.use((req, res) => {
@@ -28,7 +36,12 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('[Global Error]', err);
+  console.error(JSON.stringify({
+    level: 'error',
+    message: 'Global error handler',
+    error: err.message,
+    stack: err.stack
+  }));
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -36,11 +49,17 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════╗
-║  Fido OS - Phase 2: Routing Webhook (Staging)        ║
+║  Fido OS - Phase 3: Routing Webhook (Staging)        ║
 ╠═══════════════════════════════════════════════════════╣
 ║  Status: Running                                      ║
 ║  Port: ${PORT}                                           ║
 ║  Environment: ${process.env.NODE_ENV || 'development'}                              ║
+║  Security Features:                                   ║
+║    ✓ HMAC Validation                                  ║
+║    ✓ Replay Protection                                ║
+║    ✓ Rate Limiting (${process.env.ENABLE_RATE_LIMITING === 'true' ? 'enabled' : 'disabled'})                        ║
+║    ✓ Structured Logging                               ║
+║    ✓ 401 Alerting                                     ║
 ║  Endpoints:                                           ║
 ║    GET  /health                                       ║
 ║    GET  /ready                                        ║
