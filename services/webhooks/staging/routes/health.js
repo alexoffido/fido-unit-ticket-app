@@ -31,8 +31,7 @@ router.get('/ready', (req, res) => {
   const requiredEnvVars = [
     'CLICKUP_API_TOKEN',
     'CLICKUP_TEAM_ID',
-    'WEBHOOK_HMAC_SECRET',
-    'DEFAULT_CX_USER_ID'
+    'WEBHOOK_HMAC_SECRET'
   ];
 
   const missing = requiredEnvVars.filter(v => !process.env[v]);

@@ -1,15 +1,17 @@
 /**
  * Fido OS - Phase 2: Routing Webhook
- * Routing Service
+ * Routing Service (Updated with Auto-Routing)
  * 
  * Implements intelligent CX and Ops owner routing logic
+ * CX routing uses tag-based fallback instead of hardcoded default
  */
 
 const clickup = require('./clickup');
 const { extractCustomerKey, extractUnitKey } = require('../utils/validation');
 const { logRouting, logError } = require('../middleware/logger');
 
-const DEFAULT_CX_USER_ID = process.env.DEFAULT_CX_USER_ID || '61648426'; // Fallback CX owner
+const CX_ROUTING_MODE = process.env.CX_ROUTING_MODE || 'auto';
+const CX_ROUTER_USER_ID = process.env.CX_ROUTER_USER_ID || null; // Optional fallback bot
 
 /**
  * Route ticket to appropriate CX and Ops owners
@@ -21,9 +23,10 @@ async function routeTicket(task) {
     task_id: task.id,
     cx_owner: null,
     ops_owner: null,
-    routing_source: null,
+    routing_source: {},
     customer_key: null,
     market: null,
+    tags: [],
     errors: []
   };
 
@@ -32,7 +35,7 @@ async function routeTicket(task) {
     const customerKey = extractCustomerKey(task.custom_fields);
     routing.customer_key = customerKey;
 
-    // Step 2: Determine CX Owner
+    // Step 2: Determine CX Owner using auto-routing logic
     if (customerKey) {
       const customer = await clickup.getCustomer(customerKey);
       
@@ -47,22 +50,31 @@ async function routeTicket(task) {
         if (isVIP && hasAssignee) {
           // VIP with CX Owner → assign customer's CX owner
           routing.cx_owner = customer.assignees[0].id;
-          routing.routing_source = 'customer_assignee';
+          routing.routing_source.cx = 'customer_assignee';
+        } else if (hasAssignee) {
+          // Standard customer with assignee → use auto-routing
+          routing.cx_owner = customer.assignees[0].id;
+          routing.routing_source.cx = 'auto_routing';
         } else {
-          // VIP without CX Owner OR Standard customer → use default
-          routing.cx_owner = DEFAULT_CX_USER_ID;
-          routing.routing_source = 'default_cx';
+          // Customer exists but no assignee → tag for manual routing
+          routing.cx_owner = CX_ROUTER_USER_ID; // Optional bot assignment
+          routing.routing_source.cx = 'unresolved_customer';
+          routing.tags.push('Needs CX Routing');
+          routing.errors.push(`Customer ${customerKey} has no CX owner assigned`);
         }
       } else {
-        // Customer not found → use default
-        routing.cx_owner = DEFAULT_CX_USER_ID;
-        routing.routing_source = 'default_cx';
+        // Customer not found → tag for manual routing
+        routing.cx_owner = CX_ROUTER_USER_ID; // Optional bot assignment
+        routing.routing_source.cx = 'unresolved_customer';
+        routing.tags.push('Needs CX Routing');
         routing.errors.push(`Customer ${customerKey} not found`);
       }
     } else {
-      // No customer_key → use default
-      routing.cx_owner = DEFAULT_CX_USER_ID;
-      routing.routing_source = 'default_cx';
+      // No customer_key → tag for manual routing
+      routing.cx_owner = CX_ROUTER_USER_ID; // Optional bot assignment
+      routing.routing_source.cx = 'unresolved_customer';
+      routing.tags.push('Needs CX Routing');
+      routing.errors.push('No customer_key provided');
     }
 
     // Step 3: Determine Market
@@ -95,15 +107,18 @@ async function routeTicket(task) {
         
         if (primaryOpsField && primaryOpsField.value && primaryOpsField.value.length > 0) {
           routing.ops_owner = primaryOpsField.value[0].id;
-          routing.routing_source = routing.routing_source + ',market_primary';
+          routing.routing_source.ops = 'market_primary';
         } else {
           routing.errors.push(`Market ${routing.market} has no Primary Ops Owner`);
+          routing.tags.push('Needs Ops Routing');
         }
       } else {
         routing.errors.push(`Market ownership for ${routing.market} not found`);
+        routing.tags.push('Needs Ops Routing');
       }
     } else {
       routing.errors.push('No market specified for Ops routing');
+      routing.tags.push('Needs Ops Routing');
     }
 
     // Log routing decision
@@ -114,6 +129,7 @@ async function routeTicket(task) {
   } catch (error) {
     logError('routeTicket', error);
     routing.errors.push(error.message);
+    routing.tags.push('Routing Error');
     return routing;
   }
 }
@@ -132,7 +148,7 @@ async function applyRouting(taskId, routing) {
   };
 
   try {
-    // Collect assignees to add
+    // Collect assignees to add (only if they exist)
     const assigneesToAdd = [];
     
     if (routing.cx_owner) {
@@ -143,16 +159,18 @@ async function applyRouting(taskId, routing) {
       assigneesToAdd.push(routing.ops_owner);
     }
 
-    // Update task assignees
+    // Update task assignees (only if we have assignees to add)
     if (assigneesToAdd.length > 0) {
       await clickup.updateTaskAssignees(taskId, assigneesToAdd);
       result.updates.push(`Assigned: ${assigneesToAdd.join(', ')}`);
     }
 
-    // Tag if routing failed
-    if (routing.errors.length > 0) {
-      await clickup.addTaskTag(taskId, 'Needs Routing');
-      result.updates.push('Tagged: Needs Routing');
+    // Add tags for manual routing needs
+    if (routing.tags.length > 0) {
+      for (const tag of routing.tags) {
+        await clickup.addTaskTag(taskId, tag);
+        result.updates.push(`Tagged: ${tag}`);
+      }
     }
 
     result.success = true;
