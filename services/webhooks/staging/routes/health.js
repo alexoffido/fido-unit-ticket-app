@@ -1,11 +1,12 @@
 /**
- * Fido OS - Phase 2: Routing Webhook
+ * Fido OS - Phase 4: Comprehensive Testing
  * Health Check Routes
  * 
  * Provides uptime and diagnostics endpoints
  */
 
 const express = require('express');
+const securityAlerting = require('../utils/alerting');
 const router = express.Router();
 
 const startTime = Date.now();
@@ -45,6 +46,8 @@ router.get('/ready', (req, res) => {
     });
   }
 
+  const alertingStats = securityAlerting.getStats();
+
   res.status(200).json({
     status: 'ready',
     service: 'fido-clickup-routing-staging',
@@ -52,6 +55,12 @@ router.get('/ready', (req, res) => {
     environment: {
       node_version: process.version,
       platform: process.platform
+    },
+    security: {
+      alerting_enabled: alertingStats.alertsEnabled,
+      alert_channel: alertingStats.channelId,
+      recent_401s: alertingStats.recentFailures,
+      alert_threshold: alertingStats.threshold
     },
     timestamp: new Date().toISOString()
   });
