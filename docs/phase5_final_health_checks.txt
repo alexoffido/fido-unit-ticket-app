@@ -1,0 +1,8 @@
+=== Slack Bot Service (fido-slack-bot) ===
+ok
+
+=== Webhook Router Service (fido-unit-ticket-app) ===
+{"status":"healthy","service":"fido-clickup-routing-staging","uptime":312,"timestamp":"2025-10-27T04:46:50.713Z"}
+
+=== Webhook Router Ready Status ===
+{"status":"ready","service":"fido-clickup-routing-staging","uptime":312,"environment":{"node_version":"v18.20.5","platform":"linux"},"security":{"alerting_enabled":true,"alert_channel":"C09NVLUNDL4","recent_401s":12,"alert_threshold":20},"timestamp":"2025-10-27T04:46:50.845Z"}
