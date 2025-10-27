@@ -37,7 +37,19 @@ class ClickUpService {
 
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        return { success: false, error: `ClickUp API ${res.status} ${res.statusText}: ${text.slice(0, 300)}` };
+        const debugInfo = {
+          status: res.status,
+          statusText: res.statusText,
+          responseBody: text.slice(0, 500),
+          payloadKeys: Object.keys(payload),
+          name: payload.name,
+          priority: payload.priority,
+          listId: listId
+        };
+        if (process.env.DEBUG_CLICKUP === 'true') {
+          console.error('[ClickUp Debug] Task creation failed:', JSON.stringify(debugInfo, null, 2));
+        }
+        return { success: false, error: `ClickUp API ${res.status} ${res.statusText}: ${text.slice(0, 300)}`, debug: debugInfo };
       }
 
       const json = await res.json();

@@ -1,0 +1,66 @@
+{
+  "security": [
+    {
+      "name": "Alert Trigger Mechanism",
+      "status": "PASS",
+      "details": "Alerting enabled and configured correctly",
+      "evidence": "Channel: C09NVLUNDL4, Enabled: true"
+    },
+    {
+      "name": "Rate Limiting",
+      "status": "FAIL",
+      "details": "Unexpected response",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "Replay Protection",
+      "status": "FAIL",
+      "details": "First: 500, Second: 500",
+      "evidence": "First request: 500, Replay: 500"
+    },
+    {
+      "name": "Header Normalization",
+      "status": "PASS",
+      "details": "Header normalization handled by framework",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "Health Endpoints",
+      "status": "PASS",
+      "details": "Both health endpoints operational",
+      "evidence": "/health: healthy, /ready: ready"
+    }
+  ],
+  "routing": [
+    {
+      "name": "VIP with CX Owner",
+      "status": "FAIL",
+      "details": "Request failed: 500",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "VIP without CX Owner",
+      "status": "FAIL",
+      "details": "Request failed: 500",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "Standard Customer Routing",
+      "status": "FAIL",
+      "details": "Request failed: 500",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "No Assignee Tagging",
+      "status": "FAIL",
+      "details": "Request failed: 500",
+      "evidence": "Status: 500"
+    },
+    {
+      "name": "Market-based Ops Routing",
+      "status": "FAIL",
+      "details": "Request failed: 500",
+      "evidence": "Status: 500"
+    }
+  ]
+}

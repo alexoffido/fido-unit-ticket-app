@@ -63,6 +63,43 @@ expressApp.get('/', (_req, res) => res.status(200).send('ok'));
   expressApp.head(p, (_req, res) => res.sendStatus(200));
 });
 
+// Debug endpoint for ClickUp testing (always available)
+expressApp.get('/debug/clickup-test', async (_req, res) => {
+  try {
+    const result = await clickupService.createTask('issue', {
+      ticketId: 'DEBUG-TEST',
+      property: 'Debug Test Property',
+      clientName: 'Debug Test Client',
+      market: 'test',
+      issueType: 'Debug Test',
+      priority: 'normal',
+      description: 'This is a debug test task',
+      source: 'debug',
+      sourceDetails: 'debug endpoint',
+      dateStr: new Date().toISOString()
+    }, 'https://debug.test', 'U000000');
+    
+    res.status(200).json({
+      clickupServiceEnabled: clickupService.isEnabled,
+      result: result,
+      env: {
+        CLICKUP_API_TOKEN: !!env('CLICKUP_API_TOKEN'),
+        CLICKUP_API_TOKEN_LENGTH: env('CLICKUP_API_TOKEN')?.length || 0,
+        CLICKUP_TEAM_ID: !!env('CLICKUP_TEAM_ID'),
+        CLICKUP_LIST_ID_ISSUE: !!env('CLICKUP_LIST_ID_ISSUE'),
+        CLICKUP_LIST_ID_ISSUE_VALUE: env('CLICKUP_LIST_ID_ISSUE'),
+        DEBUG_CLICKUP: env('DEBUG_CLICKUP')
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+      stack: err.stack,
+      clickupServiceEnabled: clickupService.isEnabled
+    });
+  }
+});
+
 // Optional env sanity endpoint (only when DIAG=1)
 if (DIAG) {
   expressApp.get('/diag/env', (_req, res) => {
@@ -608,6 +645,9 @@ app.view('fido_issue_modal', async ({ ack, body, view, client, logger }) => {
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `🔗 *ClickUp Task:* <${click.taskUrl}|${click.taskName}>` });
     } else {
       logger.warn(`ClickUp createTask failed: ${click.error}`);
+      if (click.debug && process.env.DEBUG_CLICKUP === 'true') {
+        logger.error('[ClickUp Debug] Full error details:', JSON.stringify(click.debug, null, 2));
+      }
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `⚠️ ClickUp task creation failed. Create manually if needed.` });
     }
 
@@ -674,6 +714,9 @@ app.view('fido_inquiry_modal', async ({ ack, body, view, client, logger }) => {
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `🔗 *ClickUp Task:* <${click.taskUrl}|${click.taskName}>` });
     } else {
       logger.warn(`ClickUp createTask failed: ${click.error}`);
+      if (click.debug && process.env.DEBUG_CLICKUP === 'true') {
+        logger.error('[ClickUp Debug] Full error details:', JSON.stringify(click.debug, null, 2));
+      }
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `⚠️ ClickUp task creation failed. Create manually if needed.` });
     }
 
@@ -751,6 +794,9 @@ app.view('fido_unit_change_modal', async ({ ack, body, view, client, logger }) =
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `🔗 *ClickUp Task:* <${click.taskUrl}|${click.taskName}>` });
     } else {
       logger.warn(`ClickUp createTask failed: ${click.error}`);
+      if (click.debug && process.env.DEBUG_CLICKUP === 'true') {
+        logger.error('[ClickUp Debug] Full error details:', JSON.stringify(click.debug, null, 2));
+      }
       await client.chat.postMessage({ channel: post.channel, thread_ts: post.ts, text: `⚠️ ClickUp task creation failed. Create manually if needed.` });
     }
 
