@@ -428,11 +428,12 @@ const opsTicketModal = (originChannel) => ({
         type: 'static_select',
         action_id: 'priority_select',
         options: [
-          { text: { type: 'plain_text', text: 'P1 — Urgent' }, value: 'P1' },
-          { text: { type: 'plain_text', text: 'P2 — High' }, value: 'P2' },
-          { text: { type: 'plain_text', text: 'P3 — Normal' }, value: 'P3' }
+          { text: { type: 'plain_text', text: '🔴 Urgent' }, value: 'urgent' },
+          { text: { type: 'plain_text', text: '🟠 High' }, value: 'high' },
+          { text: { type: 'plain_text', text: '🟡 Medium' }, value: 'normal' },
+          { text: { type: 'plain_text', text: '🟢 Low' }, value: 'low' }
         ],
-        initial_option: { text: { type: 'plain_text', text: 'P3 — Normal' }, value: 'P3' }
+        initial_option: { text: { type: 'plain_text', text: '🟡 Medium' }, value: 'normal' }
       }
     },
     {
@@ -461,11 +462,23 @@ const opsTicketModal = (originChannel) => ({
       type: 'input',
       block_id: 'external_link_block',
       optional: true,
-      label: { type: 'plain_text', text: 'External Link (optional)' },
+      label: { type: 'plain_text', text: 'BARK Link (optional)' },
       element: {
         type: 'plain_text_input', // validate on submit
         action_id: 'external_link_input',
-        placeholder: { type: 'plain_text', text: 'https://link.to/evidence-or-tool' }
+        placeholder: { type: 'plain_text', text: 'https://bark.fido.com/...' }
+      }
+    },
+    {
+      type: 'input',
+      block_id: 'photo_upload_block',
+      optional: true,
+      label: { type: 'plain_text', text: 'Photos (optional, max 5)' },
+      element: {
+        type: 'file_input',
+        action_id: 'photo_upload_input',
+        max_files: 5,
+        filetypes: ['jpg', 'jpeg', 'png', 'gif', 'heic']
       }
     },
     {
@@ -849,6 +862,23 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
   const externalLink  = urlCandidate || null;
   const notes         = v.notes_block?.notes_input?.value?.trim() || null;
 
+  // Photo uploads (if any)
+  const photoFiles = v.photo_upload_block?.photo_upload_input?.files || [];
+  let photoUrls = [];
+  if (photoFiles.length > 0) {
+    try {
+      // Get file info from Slack (files are already uploaded when modal submitted)
+      for (const file of photoFiles) {
+        const fileInfo = await client.files.info({ file: file.id });
+        if (fileInfo.ok && fileInfo.file?.url_private) {
+          photoUrls.push(fileInfo.file.url_private);
+        }
+      }
+    } catch (err) {
+      logger.warn('Photo upload processing failed:', err);
+    }
+  }
+
   // Optional sub-issue if shown
   let subIssueText = null;
   if (issueTypeVal === 'unable_access' && v.ops_sub_issue_block?.ops_sub_issue_select?.selected_option) {
@@ -876,7 +906,8 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
         { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` }
       ]},
       { type: 'section', text: { type: 'mrkdwn', text: `*Description:*\n${description}` } },
-      ...(externalLink ? [{ type: 'section', text: { type: 'mrkdwn', text: `*External Link:*\n<${externalLink}>` } }] : []),
+      ...(externalLink ? [{ type: 'section', text: { type: 'mrkdwn', text: `*BARK Link:* <${externalLink}|View in BARK>` } }] : []),
+      ...(photoUrls.length > 0 ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Photos:*\n${photoUrls.map((url, i) => `<${url}|Photo ${i+1}>`).join(' • ')}` } }] : []),
       ...(notes ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Internal Notes:*\n${notes}` } }] : []),
       { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
     ];
@@ -901,6 +932,7 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
       priority: priorityText,
       description,
       externalLink,
+      photoUrls,
       notes,
       dateStr
     }, permalink, body.user.id);

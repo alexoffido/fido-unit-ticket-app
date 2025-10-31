@@ -69,6 +69,7 @@ class ClickUpService {
       case 'unit': return this.listUnit || this.listDefault;
       case 'issue': return this.listIssue || this.listDefault;
       case 'inquiry': return this.listInquiry || this.listDefault;
+      case 'ops': return this.listIssue || this.listDefault; // Ops tickets go to same list as issues
       default: return this.listDefault;
     }
   }
@@ -172,6 +173,23 @@ class ClickUpService {
         this._mdKV('Contact Ref', data.sourceDetails) +
         this._mdKV('Received', dateStr) +
         `\n**Inquiry Details:**\n${this._sanitizeLine(details)}\n` +
+        (slackPermalink ? `\n[View Slack Thread](${slackPermalink})\n` : '');
+    } else if (t === 'ops') {
+      name = `[OPS] ${ticketId} • ${data.subject || property}`;
+      const desc = data.description || '';
+      description =
+        `### Ops → CX Ticket\n` +
+        this._mdKV('Ticket', ticketId) +
+        this._mdKV('Subject', data.subject) +
+        this._mdKV('Property/Location', property) +
+        this._mdKV('Market', market?.toUpperCase()) +
+        this._mdKV('Issue Type', data.issueType) +
+        this._mdKV('Priority', data.priority) +
+        this._mdKV('Reported', dateStr) +
+        `\n**Description:**\n${this._sanitizeLine(desc)}\n` +
+        (data.externalLink ? `\n**BARK Link:** [View in BARK](${data.externalLink})\n` : '') +
+        (data.photoUrls && data.photoUrls.length > 0 ? `\n**Photos:**\n${data.photoUrls.map((url, i) => `[Photo ${i+1}](${url})`).join(' • ')}\n` : '') +
+        (data.notes ? `\n**Internal Notes:**\n${this._sanitizeLine(data.notes)}\n` : '') +
         (slackPermalink ? `\n[View Slack Thread](${slackPermalink})\n` : '');
     } else {
       // Unknown type falls back to generic task
