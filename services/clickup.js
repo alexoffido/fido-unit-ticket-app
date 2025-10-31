@@ -219,6 +219,78 @@ class ClickUpService {
 
     return { listId, payload };
   }
+
+  /**
+   * Upload Slack files as ClickUp task attachments
+   * @param {string} taskId - ClickUp task ID
+   * @param {Array} slackFiles - Array of Slack file objects with url_private and name
+   * @param {string} slackToken - Slack bot token for downloading private files
+   * @returns {Promise<{success: boolean, attached: number, failed: number, errors: Array}>}
+   */
+  async attachFilesToTask(taskId, slackFiles = [], slackToken = '') {
+    if (!taskId || !slackFiles.length || !slackToken) {
+      return { success: true, attached: 0, failed: 0, errors: [] };
+    }
+
+    let attached = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const file of slackFiles) {
+      try {
+        // Download file from Slack
+        const slackRes = await fetch(file.url_private, {
+          headers: { 'Authorization': `Bearer ${slackToken}` }
+        });
+
+        if (!slackRes.ok) {
+          const err = `Failed to download from Slack: ${slackRes.status} ${slackRes.statusText}`;
+          errors.push({ file: file.name, error: err });
+          failed++;
+          continue;
+        }
+
+        const blob = await slackRes.arrayBuffer();
+
+        // Upload to ClickUp using FormData
+        const FormData = (await import('formdata-node')).FormData;
+        const { Blob } = await import('buffer');
+        
+        const form = new FormData();
+        form.append('attachment', new Blob([blob]), file.name || 'photo.jpg');
+
+        const cuRes = await fetch(
+          `https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/attachment`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': this.token
+            },
+            body: form
+          }
+        );
+
+        if (!cuRes.ok) {
+          const text = await cuRes.text().catch(() => '');
+          const err = `ClickUp upload failed: ${cuRes.status} ${cuRes.statusText} - ${text.slice(0, 200)}`;
+          errors.push({ file: file.name, error: err });
+          failed++;
+        } else {
+          attached++;
+        }
+
+        // Small delay to avoid rate limiting
+        if (slackFiles.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
+      } catch (err) {
+        errors.push({ file: file.name, error: err?.message || String(err) });
+        failed++;
+      }
+    }
+
+    return { success: true, attached, failed, errors };
+  }
 }
 
 module.exports = ClickUpService;
