@@ -155,10 +155,13 @@ const CHANNELS = {
   CX_UNIT_CHANGES: env('CX_UNIT_CHANGES_CHANNEL_ID') || 'C08M77HMRT9',
 };
 const SUBTEAMS = {
-  BP_OPERATIONS: env('BP_OPERATIONS_SUBTEAM_ID') || 'SXXXXBP',
-  CX: env('CX_SUBTEAM_ID') || 'SXXXXCX',
+  BP_OPERATIONS: env('SLACK_SUBTEAM_BP_OPS') || env('BP_OPERATIONS_SUBTEAM_ID') || 'SXXXXBP',
+  CX: env('SLACK_SUBTEAM_CX') || env('CX_SUBTEAM_ID') || 'SXXXXCX',
   BPO_MGMT: env('BPO_MGMT_SUBTEAM_ID') || 'SXXXXBPO',
 };
+
+// Mention helper for usergroup mentions
+const mention = (id, fallback) => id ? `<!subteam^${id}|${fallback}>` : fallback;
 
 // Add FO- prefix for Ops → CX
 function generateTicketId(type) {
@@ -375,14 +378,14 @@ const opsTicketModal = (originChannel) => ({
   type: 'modal',
   callback_id: 'fido_ops_ticket_modal',
   private_metadata: originChannel,
-  title: { type: 'plain_text', text: 'Ops Tickets' }, // keep display name
+  title: { type: 'plain_text', text: 'Ops Tickets' },
   submit: { type: 'plain_text', text: 'Submit' },
   close:  { type: 'plain_text', text: 'Cancel' },
   blocks: [
     {
       type: 'input',
       block_id: 'subject_block',
-      label: { type: 'plain_text', text: 'Subject' },
+      label: { type: 'plain_text', text: '📝 Subject' },
       element: {
         type: 'plain_text_input',
         action_id: 'subject_input',
@@ -394,7 +397,7 @@ const opsTicketModal = (originChannel) => ({
     {
       type: 'input',
       block_id: 'property_block',
-      label: { type: 'plain_text', text: 'Property / Location' },
+      label: { type: 'plain_text', text: '📍 Property / Location' },
       element: {
         type: 'plain_text_input',
         action_id: 'property_input',
@@ -404,42 +407,42 @@ const opsTicketModal = (originChannel) => ({
     {
       type: 'input',
       block_id: 'issue_type_block',
-      label: { type: 'plain_text', text: 'Issue Type' },
+      label: { type: 'plain_text', text: '⚙️ Issue Type' },
       element: {
         type: 'static_select',
-        action_id: 'ops_issue_type_select', // namespaced
+        action_id: 'ops_issue_type_select',
         placeholder: { type: 'plain_text', text: 'Select issue type' },
         options: [
-          { text: { type: 'plain_text', text: 'Unable to Access' }, value: 'unable_access' },
-          { text: { type: 'plain_text', text: 'Incorrect Bins / Location' }, value: 'bin_location' },
-          { text: { type: 'plain_text', text: 'Gate/Code/Key Problem' }, value: 'access_code' },
-          { text: { type: 'plain_text', text: 'Blocked / Obstruction' }, value: 'blocked' },
-          { text: { type: 'plain_text', text: 'Safety / Incident' }, value: 'safety' },
-          { text: { type: 'plain_text', text: 'Customer Instruction Conflict' }, value: 'instruction_conflict' },
-          { text: { type: 'plain_text', text: 'Miscellaneous' }, value: 'misc' }
+          { text: { type: 'plain_text', text: '🚪 Unable to Access' }, value: 'unable_access' },
+          { text: { type: 'plain_text', text: '🗑️ Incorrect Bins / Location' }, value: 'bin_location' },
+          { text: { type: 'plain_text', text: '🔑 Gate/Code/Key Problem' }, value: 'access_code' },
+          { text: { type: 'plain_text', text: '🚫 Blocked / Obstruction' }, value: 'blocked' },
+          { text: { type: 'plain_text', text: '⚠️ Safety / Incident' }, value: 'safety' },
+          { text: { type: 'plain_text', text: '💬 Customer Instruction Conflict' }, value: 'instruction_conflict' },
+          { text: { type: 'plain_text', text: '❓ Miscellaneous' }, value: 'misc' }
         ]
       }
     },
     {
       type: 'input',
       block_id: 'priority_block',
-      label: { type: 'plain_text', text: 'Priority' },
+      label: { type: 'plain_text', text: '🔺 Priority' },
       element: {
         type: 'static_select',
         action_id: 'priority_select',
         options: [
-          { text: { type: 'plain_text', text: '🔴 Urgent' }, value: 'urgent' },
-          { text: { type: 'plain_text', text: '🟠 High' }, value: 'high' },
-          { text: { type: 'plain_text', text: '🟡 Medium' }, value: 'normal' },
-          { text: { type: 'plain_text', text: '🟢 Low' }, value: 'low' }
+          { text: { type: 'plain_text', text: '🔴 URGENT - Immediate Action Required' }, value: 'urgent' },
+          { text: { type: 'plain_text', text: '🟠 HIGH - Same Day Resolution' }, value: 'high' },
+          { text: { type: 'plain_text', text: '🟡 NORMAL - Next Business Day' }, value: 'normal' },
+          { text: { type: 'plain_text', text: '🟢 LOW - When Available' }, value: 'low' }
         ],
-        initial_option: { text: { type: 'plain_text', text: '🟡 Medium' }, value: 'normal' }
+        initial_option: { text: { type: 'plain_text', text: '🟡 NORMAL - Next Business Day' }, value: 'normal' }
       }
     },
     {
       type: 'input',
       block_id: 'market_block',
-      label: { type: 'plain_text', text: 'Market' },
+      label: { type: 'plain_text', text: '🏛️ Market' },
       element: {
         type: 'static_select',
         action_id: 'market_select',
@@ -449,7 +452,7 @@ const opsTicketModal = (originChannel) => ({
     {
       type: 'input',
       block_id: 'description_block',
-      label: { type: 'plain_text', text: 'What happened?' },
+      label: { type: 'plain_text', text: '📝 What happened?' },
       element: {
         type: 'plain_text_input',
         action_id: 'description_input',
@@ -891,9 +894,7 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
 
   try {
     // Slack post to CX channel
-    const headerText = SUBTEAMS.CX
-      ? `*ATTN:* <!subteam^${SUBTEAMS.CX}|@cx> — New *Ops → CX* Ticket. Please respond *in this thread*.`
-      : `New *Ops → CX* Ticket. Please respond *in this thread*.`;
+    const headerText = `ATTN: ${mention(SUBTEAMS.CX, '@cx')} The Ops team has reported a new issue — Please respond in this thread.`;
 
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn', text: headerText } },
@@ -906,7 +907,7 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
         { type: 'mrkdwn', text: `*Priority:*\n${priorityText}` }
       ]},
       { type: 'section', text: { type: 'mrkdwn', text: `*Description:*\n${description}` } },
-      ...(externalLink ? [{ type: 'section', text: { type: 'mrkdwn', text: `*BARK Link:* <${externalLink}|View in BARK>` } }] : []),
+      ...(externalLink ? [{ type: 'section', text: { type: 'mrkdwn', text: `*<${externalLink}|View Service in BARK>*` } }] : []),
       ...(photoUrls.length > 0 ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Photos:*\n${photoUrls.map((url, i) => `<${url}|Photo ${i+1}>`).join(' • ')}` } }] : []),
       ...(notes ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Internal Notes:*\n${notes}` } }] : []),
       { type: 'context', elements: [{ type: 'mrkdwn', text: `_Created by: <@${body.user.id}> | Fido Ticketing System_` }] }
