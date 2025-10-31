@@ -939,6 +939,21 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
     }, permalink, body.user.id);
 
     if (click?.success) {
+      // Upload photos as ClickUp attachments (best-effort)
+      if (slackFiles.length > 0 && click.taskId) {
+        const attachResult = await clickupService.attachFilesToTask(
+          click.taskId,
+          slackFiles,
+          process.env.SLACK_BOT_TOKEN
+        );
+        
+        if (attachResult.failed > 0) {
+          console.warn(`[Ops Ticket ${ticketId}] Photo attachment upload: ${attachResult.attached} succeeded, ${attachResult.failed} failed`, attachResult.errors);
+        } else if (attachResult.attached > 0) {
+          console.log(`[Ops Ticket ${ticketId}] Successfully attached ${attachResult.attached} photo(s) to ClickUp task`);
+        }
+      }
+
       await client.chat.postMessage({
         channel: post.channel,
         thread_ts: post.ts,
