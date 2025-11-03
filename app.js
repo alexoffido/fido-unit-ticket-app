@@ -35,7 +35,11 @@ function buildClickUpServiceSafe() {
       return { isEnabled: false, async createTask() { return { success: false, error: 'ClickUp disabled (bad service)' }; } };
     }
     console.log('[BOOT] ClickUp enabled');
-    return { isEnabled: true, createTask: svc.createTask.bind(svc) };
+    return { 
+      isEnabled: true, 
+      createTask: svc.createTask.bind(svc),
+      attachFilesToTask: svc.attachFilesToTask ? svc.attachFilesToTask.bind(svc) : null
+    };
   } catch (err) {
     console.warn(`[BOOT] ClickUp disabled (constructor error): ${err.message}`);
     return { isEnabled: false, async createTask() { return { success: false, error: 'ClickUp disabled (constructor error)' }; } };
@@ -940,18 +944,24 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
 
     if (click?.success) {
       // Upload photos as ClickUp attachments (best-effort)
-      if (photoFiles.length > 0 && click.taskId) {
-        const attachResult = await clickupService.attachFilesToTask(
-          click.taskId,
-          photoFiles,
-          process.env.SLACK_BOT_TOKEN
-        );
+      if (photoFiles.length > 0 && click.taskId && typeof clickupService.attachFilesToTask === 'function') {
+        try {
+          const attachResult = await clickupService.attachFilesToTask(
+            click.taskId,
+            photoFiles,
+            process.env.SLACK_BOT_TOKEN
+          );
         
-        if (attachResult.failed > 0) {
-          console.warn(`[Ops Ticket ${ticketId}] Photo attachment upload: ${attachResult.attached} succeeded, ${attachResult.failed} failed`, attachResult.errors);
-        } else if (attachResult.attached > 0) {
-          console.log(`[Ops Ticket ${ticketId}] Successfully attached ${attachResult.attached} photo(s) to ClickUp task`);
+          if (attachResult.failed > 0) {
+            console.warn(`[CU-Attach] ${attachResult.attached} succeeded, ${attachResult.failed} failed`, attachResult.errors);
+          } else if (attachResult.attached > 0) {
+            console.info(`[CU-Attach] Successfully attached ${attachResult.attached} photo(s)`);
+          }
+        } catch (e) {
+          console.warn('[CU-Attach] failed', e.message);
         }
+      } else if (photoFiles.length > 0 && click.taskId) {
+        console.warn('[CU-Attach] attachFilesToTask not available — skipping upload');
       }
 
       await client.chat.postMessage({

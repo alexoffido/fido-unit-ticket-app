@@ -410,7 +410,22 @@ class ClickUpService {
       }
     }
 
+    // Log summary if any failures
+    if (failed > 0 && process.env.DEBUG_CLICKUP === 'true') {
+      console.warn(`[CU-Field] Summary: ${updated} succeeded, ${failed} failed`);
+    }
+
     return { updated, failed, errors };
+  }
+
+  /**
+   * Strip emojis from string for ClickUp dropdown compatibility
+   * @param {string} str - String that may contain emojis
+   * @returns {string} - Cleaned string
+   */
+  _stripEmojis(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu, '').trim();
   }
 
   /**
@@ -422,6 +437,9 @@ class ClickUpService {
    */
   async _updateCustomField(taskId, fieldId, value) {
     try {
+      // Normalize value: strip emojis for dropdown compatibility
+      const normalized = this._stripEmojis(value);
+      
       const res = await fetch(
         `https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/field/${encodeURIComponent(fieldId)}`,
         {
@@ -430,11 +448,22 @@ class ClickUpService {
             'Authorization': this.token,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ value })
+          body: JSON.stringify({ value: normalized })
         }
       );
 
-      return res.ok;
+      if (res.ok) {
+        if (process.env.DEBUG_CLICKUP === 'true') {
+          console.info(`[CU-Field] Updated ${fieldId}`);
+        }
+        return true;
+      } else {
+        const text = await res.text().catch(() => '');
+        if (process.env.DEBUG_CLICKUP === 'true') {
+          console.warn(`[CU-Field] Failed ${fieldId}: ${res.status} ${text.slice(0, 100)}`);
+        }
+        return false;
+      }
     } catch (err) {
       if (process.env.DEBUG_CLICKUP === 'true') {
         console.error(`[ClickUp] Custom field update failed: ${fieldId}`, err.message);
