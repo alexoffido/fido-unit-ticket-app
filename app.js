@@ -939,7 +939,8 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
       externalLink,
       photoUrls,
       notes,
-      dateStr
+      dateStr,
+      slackUserId: body.user.id
     }, permalink, body.user.id);
 
     if (click?.success) {

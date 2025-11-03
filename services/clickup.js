@@ -74,13 +74,32 @@ class ClickUpService {
 
   // ---------- helpers ----------
   _listForType(type) {
-    switch ((type || '').toLowerCase()) {
-      case 'unit': return this.listUnit || this.listDefault;
-      case 'issue': return this.listIssue || this.listDefault;
-      case 'inquiry': return this.listInquiry || this.listDefault;
-      case 'ops': return this.listOps || this.listIssue || this.listDefault; // Ops tickets → dedicated list (fallback to CX list)
-      default: return this.listDefault;
+    const t = (type || '').toLowerCase();
+    let listId;
+    
+    switch (t) {
+      case 'unit': 
+        listId = this.listUnit || this.listDefault;
+        break;
+      case 'issue': 
+        listId = this.listIssue || this.listDefault;
+        break;
+      case 'inquiry': 
+        listId = this.listInquiry || this.listDefault;
+        break;
+      case 'ops': 
+        listId = this.listOps || this.listIssue || this.listDefault;
+        break;
+      default: 
+        listId = this.listDefault;
     }
+    
+    // Log routing decision for debugging
+    if (process.env.DEBUG_CLICKUP === 'true') {
+      console.info(`[CU-Routing] type="${t}" → listId="${listId}"`);
+    }
+    
+    return listId;
   }
 
   _priorityFrom(val) {
@@ -358,6 +377,21 @@ class ClickUpService {
 
     // Type-specific fields
     if (t === 'ops') {
+      // Priority Level: Use dropdown option ID
+      const priorityOptionId = this._priorityOptionId(data.priority);
+      if (priorityOptionId) {
+        updates.push({ id: process.env.CU_FIELD_PRIORITY_LEVEL, value: priorityOptionId });
+      }
+      
+      // Date Created: Use epoch milliseconds
+      updates.push({ id: process.env.CU_FIELD_DATE_CREATED, value: Date.now() });
+      
+      // Submitted By (Slack User): Format as Slack mention
+      if (data.slackUserId) {
+        updates.push({ id: process.env.CU_FIELD_SUBMITTED_BY_SLACK, value: `<@${data.slackUserId}>` });
+      }
+      
+      // Ops-specific fields
       updates.push(
         { id: process.env.CU_FIELD_OPS_SUB_ISSUE_TYPE, value: data.issueType },
         { id: process.env.CU_FIELD_OPS_EXTERNAL_LINK, value: data.externalLink }
@@ -426,6 +460,26 @@ class ClickUpService {
   _stripEmojis(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu, '').trim();
+  }
+
+  /**
+   * Map priority text to ClickUp dropdown option ID
+   * @param {string} priorityText - Priority text from Slack (e.g., "URGENT", "HIGH", "NORMAL", "LOW")
+   * @returns {string|null} - ClickUp option ID or null
+   */
+  _priorityOptionId(priorityText) {
+    if (!priorityText) return null;
+    const p = this._stripEmojis(priorityText).toLowerCase();
+    
+    // Map to ClickUp Priority Level dropdown option IDs
+    const optionMap = {
+      'urgent': 'aa0f17d1-2ee9-4e5d-b752-f04cae34bb5c',
+      'high': '807fc775-eb70-404a-89b5-56cb9bdc1269',
+      'normal': 'cf1eed90-45de-4adf-bb2f-f393db43795a',
+      'low': '8d601a38-aae8-4130-98ce-d151e185a1f0'
+    };
+    
+    return optionMap[p] || null;
   }
 
   /**
