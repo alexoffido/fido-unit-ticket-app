@@ -10,6 +10,7 @@ class ClickUpService {
     this.listUnit = process.env.CLICKUP_LIST_ID_UNIT || '';
     this.listIssue = process.env.CLICKUP_LIST_ID_ISSUE || '';
     this.listInquiry = process.env.CLICKUP_LIST_ID_INQUIRY || '';
+    this.listOps = process.env.CLICKUP_LIST_ID_OPS || '';
 
     // Fallback list if the above aren’t set
     this.listDefault = process.env.CLICKUP_LIST_ID || '';
@@ -57,6 +58,14 @@ class ClickUpService {
       const taskName = json?.name || payload.name;
       const taskUrl = json?.url || (taskId ? `https://app.clickup.com/t/${taskId}` : '');
 
+      // Update custom fields after task creation (best-effort)
+      if (taskId) {
+        const fieldResult = await this._updateCustomFields(taskId, type, data, slackPermalink);
+        if (fieldResult.failed > 0 && process.env.DEBUG_CLICKUP === 'true') {
+          console.warn(`[ClickUp] Custom field updates: ${fieldResult.updated} succeeded, ${fieldResult.failed} failed`, fieldResult.errors);
+        }
+      }
+
       return { success: true, taskId, taskName, taskUrl };
     } catch (err) {
       return { success: false, error: err?.message || String(err) };
@@ -69,7 +78,7 @@ class ClickUpService {
       case 'unit': return this.listUnit || this.listDefault;
       case 'issue': return this.listIssue || this.listDefault;
       case 'inquiry': return this.listInquiry || this.listDefault;
-      case 'ops': return this.listIssue || this.listDefault; // Ops tickets go to same list as issues
+      case 'ops': return this.listOps || this.listIssue || this.listDefault; // Ops tickets → dedicated list (fallback to CX list)
       default: return this.listDefault;
     }
   }
@@ -98,6 +107,25 @@ class ClickUpService {
       .toLowerCase()
       .replace(/[^\w]+/g, '_')
       .replace(/^_+|_+$/g, '');
+  }
+
+  /**
+   * Calculate due date timestamp from priority level
+   * @param {string} priority - Priority string (urgent/high/normal/low)
+   * @returns {number|null} - Unix timestamp in milliseconds or null
+   */
+  _dueDateFromPriority(priority) {
+    if (!priority) return null;
+    const p = (priority || '').toLowerCase();
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    if (p.includes('urgent')) return now;              // today
+    if (p.includes('high')) return now + oneDay;       // +1 day
+    if (p.includes('normal')) return now + 2 * oneDay; // +2 days
+    if (p.includes('low')) return now + 3 * oneDay;    // +3 days
+
+    return null; // Unknown priority
   }
 
   _sanitizeLine(s) {
@@ -207,6 +235,9 @@ class ClickUpService {
     // Optional assignee: if you want to set to the Slack submitter, map slackUserId => ClickUp user id here
     const assignees = []; // e.g., [CLICKUP_USER_ID]
 
+    // Calculate due date for ops tickets based on priority
+    const dueDate = (t === 'ops') ? this._dueDateFromPriority(data.priority) : null;
+
     const payload = {
       name,
       description,          // Markdown allowed
@@ -214,8 +245,12 @@ class ClickUpService {
       assignees,            // []
       tags,                 // []
       // status: 'To Do',   // optionally set a default status that exists in the List
-      // due_date, due_date_time, start_date, etc. can be added if desired
     };
+
+    // Add due_date if calculated (ops tickets only)
+    if (dueDate) {
+      payload.due_date = dueDate;
+    }
 
     return { listId, payload };
   }
@@ -290,6 +325,122 @@ class ClickUpService {
     }
 
     return { success: true, attached, failed, errors };
+  }
+
+  /**
+   * Update custom fields for a task based on ticket type
+   * @param {string} taskId - ClickUp task ID
+   * @param {string} type - Ticket type (ops, issue, inquiry, unit)
+   * @param {object} data - Ticket data from Slack modal
+   * @param {string} slackPermalink - Slack thread permalink
+   * @returns {Promise<{updated: number, failed: number, errors: Array}>}
+   */
+  async _updateCustomFields(taskId, type, data, slackPermalink) {
+    const updates = [];
+    const errors = [];
+    const t = (type || '').toLowerCase();
+
+    // Core fields (shared across all types)
+    const coreFields = [
+      { id: process.env.CU_FIELD_PROPERTY_ADDRESS, value: data.property },
+      { id: process.env.CU_FIELD_MARKET_CODE, value: data.market?.toUpperCase() },
+      { id: process.env.CU_FIELD_SLACK_PERMALINK, value: slackPermalink },
+      { id: process.env.CU_FIELD_SLACK_TICKET_ID, value: data.ticketId },
+      { id: process.env.CU_FIELD_CLIENT_NAME, value: data.clientName },
+      { id: process.env.CU_FIELD_PROPERTY_UNIT, value: data.property },
+      { id: process.env.CU_FIELD_SOURCE_REFERENCE, value: 'Slack' },
+      { id: process.env.CU_FIELD_SUBMITTED_BY, value: data.submittedBy || 'Slack User' },
+      { id: process.env.CU_FIELD_SOURCE_METHOD, value: 'Slack Modal' },
+      { id: process.env.CU_FIELD_NOTES, value: data.notes }
+    ];
+
+    updates.push(...coreFields);
+
+    // Type-specific fields
+    if (t === 'ops') {
+      updates.push(
+        { id: process.env.CU_FIELD_OPS_SUB_ISSUE_TYPE, value: data.issueType },
+        { id: process.env.CU_FIELD_OPS_EXTERNAL_LINK, value: data.externalLink }
+      );
+    } else if (t === 'issue') {
+      updates.push(
+        { id: process.env.CU_FIELD_ISSUE_TYPE, value: data.issueType },
+        { id: process.env.CU_FIELD_ISSUE_DESCRIPTION, value: data.description },
+        { id: process.env.CU_FIELD_PRIORITY_LEVEL, value: data.priority }
+      );
+    } else if (t === 'inquiry') {
+      updates.push(
+        { id: process.env.CU_FIELD_INQUIRY_TYPE, value: data.inquiryType },
+        { id: process.env.CU_FIELD_CUSTOMER_QUESTION, value: data.question },
+        { id: process.env.CU_FIELD_RESPONSE_PRIORITY, value: data.priority },
+        { id: process.env.CU_FIELD_CUSTOMER_NAME, value: data.clientName }
+      );
+    } else if (t === 'unit') {
+      updates.push(
+        { id: process.env.CU_FIELD_CHANGE_TYPE, value: data.changeType },
+        { id: process.env.CU_FIELD_EFFECTIVE_DATE, value: data.effectiveDate },
+        { id: process.env.CU_FIELD_TRASH_PICKUP_DAY, value: data.trashDay },
+        { id: process.env.CU_FIELD_RECYCLING_DAY, value: data.recyclingDay },
+        { id: process.env.CU_FIELD_REASON_FOR_CHANGE, value: data.reason },
+        { id: process.env.CU_FIELD_SPECIAL_INSTRUCTIONS, value: data.instructions },
+        { id: process.env.CU_FIELD_CUSTOMER_NAME, value: data.clientName }
+      );
+    }
+
+    // Execute updates
+    let updated = 0;
+    let failed = 0;
+
+    for (const field of updates) {
+      if (!field.id || field.value === undefined || field.value === null || field.value === '') {
+        continue; // Skip if field ID missing or value empty
+      }
+
+      const success = await this._updateCustomField(taskId, field.id, field.value);
+      if (success) {
+        updated++;
+      } else {
+        failed++;
+        errors.push({ fieldId: field.id, value: field.value });
+      }
+
+      // Small delay to avoid rate limiting
+      if (updates.length > 5) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    return { updated, failed, errors };
+  }
+
+  /**
+   * Update a single custom field
+   * @param {string} taskId - ClickUp task ID
+   * @param {string} fieldId - Custom field ID
+   * @param {any} value - Field value
+   * @returns {Promise<boolean>} - Success status
+   */
+  async _updateCustomField(taskId, fieldId, value) {
+    try {
+      const res = await fetch(
+        `https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/field/${encodeURIComponent(fieldId)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': this.token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ value })
+        }
+      );
+
+      return res.ok;
+    } catch (err) {
+      if (process.env.DEBUG_CLICKUP === 'true') {
+        console.error(`[ClickUp] Custom field update failed: ${fieldId}`, err.message);
+      }
+      return false;
+    }
   }
 }
 
