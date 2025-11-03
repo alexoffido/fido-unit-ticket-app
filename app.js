@@ -940,10 +940,10 @@ app.view('fido_ops_ticket_modal', async ({ ack, body, view, client, logger }) =>
 
     if (click?.success) {
       // Upload photos as ClickUp attachments (best-effort)
-      if (slackFiles.length > 0 && click.taskId) {
+      if (photoFiles.length > 0 && click.taskId) {
         const attachResult = await clickupService.attachFilesToTask(
           click.taskId,
-          slackFiles,
+          photoFiles,
           process.env.SLACK_BOT_TOKEN
         );
         
